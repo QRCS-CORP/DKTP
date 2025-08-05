@@ -23,7 +23,7 @@ DKTP combines post-quantum asymmetric key exchange, directional pre-shared secre
 - **Mutual authentication without a central certificate authority**
 - **Forward and post-compromise secrecy**, with ratcheting PSKs
 - **Separate transmit/receive channels**, each independently keyed
-- **Full 512-bit cryptographic strength**, including McEliece KEM, SPHINCS+ signatures, SHAKE-512, SHA3-512, and KMAC-512
+- **Capable of full 512-bit cryptographic strength**, RCS-512, SHAKE-512, SHA3-512, and KMAC-512
 - **Perfect configuration binding** via signed session cookies
 
 DKTP is especially suited for critical infrastructure, embedded systems, offline and sovereign networks, or any deployment needing long-term assurance without runtime PKI.
@@ -57,9 +57,9 @@ DKTP integrates post-quantum secure algorithms in all phases of the handshake an
   - *RCS-512:* Wide-block AEAD stream cipher based on Rijndael with dual-channel separation and strong entropy mixing
 
 - **KDF / Hashing / MACs:**
-  - *SHAKE-512* for all key derivation
-  - *SHA3-512* for all cryptographic hashes and message structure integrity
-  - *KMAC-512* for authenticated encryption and message validation
+  - *SHAKE* for all key derivation
+  - *SHA3* for all cryptographic hashes and message structure integrity
+  - *KMAC* for authenticated encryption and message validation
 
 - **Entropy & Nonce:**  
   - Keccak-based PRNG + system randomness (via ACP)
