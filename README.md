@@ -54,7 +54,7 @@ DKTP integrates post-quantum secure algorithms in all phases of the handshake an
 
 ### Symmetric Cryptography
 - **Cipher:**  
-  - *RCS-512:* Wide-block AEAD stream cipher based on Rijndael with dual-channel separation and strong entropy mixing
+  - *RCS:* Wide-block AEAD stream cipher based on Rijndael with a cSHAKE key schedule and KMAC authentication, with dual-channel separation and strong entropy mixing
 
 - **KDF / Hashing / MACs:**
   - *SHAKE* for all key derivation
