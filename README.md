@@ -2,13 +2,18 @@
 
 ## Introduction
 
+[![Build](https://github.com/QRCS-CORP/DKTP/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/QRCS-CORP/DKTP/actions/workflows/build.yml)
+[![CodeQL](https://github.com/QRCS-CORP/DKTP/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/QRCS-CORP/DKTP/actions/workflows/codeql-analysis.yml)
+[![CodeFactor](https://www.codefactor.io/repository/github/qrcs-corp/dktp/badge)](https://www.codefactor.io/repository/github/qrcs-corp/dktp)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20|%20macOS%20|%20Windows-blue)](#)
 [![Security Policy](https://img.shields.io/badge/security-policy-blue)](https://github.com/QRCS-CORP/DKTP/security/policy)
 [![License: QRCS License](https://img.shields.io/badge/License-QRCS%20License-blue.svg)](https://github.com/QRCS-CORP/DKTP/blob/main/License.txt)
 [![Language](https://img.shields.io/static/v1?label=Language&message=C%2023&color=blue)](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf)
 [![docs](https://img.shields.io/badge/docs-online-brightgreen)](https://qrcs-corp.github.io/DKTP/)
+[![GitHub release](https://img.shields.io/github/v/release/QRCS-CORP/DKTP)](https://github.com/QRCS-CORP/DKTP/releases/tag/2025-08-25)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/QRCS-CORP/DKTP.svg)](https://github.com/QRCS-CORP/DKTP/commits/main)
 [![Custom: Standard](https://img.shields.io/static/v1?label=Security%20Standard&message=MISRA&color=blue)](https://misra.org.uk/)
-[![Custom: Target](https://img.shields.io/static/v1?label=Target%20Industry&message=Secure%20Infrastructure&color=brightgreen)](#)
+[![Custom: Target](https://img.shields.io/static/v1?label=Target%20Industry&message=Communications&color=brightgreen)](#)
 
 **DKTP is a next-generation tunnel protocol that achieves up to 512-bit cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It enables post-quantum secure, mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
 
