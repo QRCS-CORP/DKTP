@@ -515,7 +515,6 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 
 	if (cns != NULL && kss != NULL && packetin != NULL && packetout != NULL)
 	{
-		const uint8_t* pkid = packetin->pmessage;
 		uint64_t tm;
 
 		tm = qsc_timestamp_datetime_utc();
