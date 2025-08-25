@@ -234,7 +234,7 @@ static bool listener_key_dialogue(dktp_local_peer_key* lpk, dktp_remote_peer_key
 	{
 		uint8_t slpk[DKTP_LOCAL_PEER_KEY_ENCODED_SIZE] = { 0U };
 
-		res = qsc_fileutils_copy_file_to_stream(fpath, (const char*)slpk, sizeof(slpk));
+		res = qsc_fileutils_copy_file_to_stream(fpath, (char*)slpk, sizeof(slpk));
 
 		if (res == true)
 		{
@@ -244,7 +244,7 @@ static bool listener_key_dialogue(dktp_local_peer_key* lpk, dktp_remote_peer_key
 
 			if (listener_remote_peer_exists(fpath, sizeof(fpath)) == true)
 			{
-				res = qsc_fileutils_copy_file_to_stream(fpath, (const char*)srpk, sizeof(srpk));
+				res = qsc_fileutils_copy_file_to_stream(fpath, (char*)srpk, sizeof(srpk));
 
 				if (res == true)
 				{
@@ -304,7 +304,7 @@ static bool listener_key_dialogue(dktp_local_peer_key* lpk, dktp_remote_peer_key
 						qsc_fileutils_exists(fpath) == true && 
 						qsc_stringutils_string_contains(fpath, DKTP_REMOTE_PEER_KEY_EXTENSION) == true)
 					{
-						elen = qsc_fileutils_copy_file_to_stream(fpath, (const char*)srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
+						elen = qsc_fileutils_copy_file_to_stream(fpath, (char*)srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
 
 						if (elen == DKTP_REMOTE_PEER_KEY_ENCODED_SIZE)
 						{
