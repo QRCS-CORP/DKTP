@@ -17,9 +17,9 @@
 
 **DKTP is a next-generation tunnel protocol that achieves up to 512-bit cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It enables post-quantum secure, mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
 
-[DKTP Help Documentation](https://qrcs-corp.github.io/DKTP/)  
-[DKTP Protocol Specification](https://qrcs-corp.github.io/DKTP/pdf/dktp_specification.pdf)  
-[DKTP Summary Document](https://qrcs-corp.github.io/DKTP/pdf/dktp_summary.pdf)
+[DKTP Help Documentation](https://qrcs-corp.github.io/DKTP/docs/)  
+[DKTP Protocol Specification](https://qrcs-corp.github.io/DKTP/docs/pdf/dktp_specification.pdf)  
+[DKTP Summary Document](https://qrcs-corp.github.io/DKTP/docs/pdf/dktp_summary.pdf)
 
 ## Overview
 
