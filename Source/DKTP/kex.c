@@ -373,7 +373,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					kex_extract_seqtime(st, packetout);
 					qsc_sha3_initialize(&kstate);
 					qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-					qsc_sha3_update(&kstate, qsc_keccak_rate_512, DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 					qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
 					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
 
@@ -446,7 +446,7 @@ static dktp_errors kex_client_establish_verify(dktp_kex_client_state* kcs, dktp_
 			kex_extract_seqtime(st, packetin);
 			qsc_sha3_initialize(&kstate);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
 
@@ -816,7 +816,7 @@ static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dkt
 			kex_extract_seqtime(st, packetin);
 			qsc_sha3_initialize(&kstate);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
 
@@ -830,7 +830,7 @@ static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dkt
 				kex_extract_seqtime(st, packetout);
 				qsc_sha3_initialize(&kstate);
 				qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-				qsc_sha3_update(&kstate, qsc_keccak_rate_512, DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
 				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
 

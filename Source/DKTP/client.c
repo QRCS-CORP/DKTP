@@ -95,7 +95,7 @@ static void asymmetric_ratchet_update(qsc_rcs_state* cpr, uint8_t* pss, const ui
 	uint8_t prnd[DKTP_SYMMETRIC_KEY_SIZE + DKTP_SYMMETRIC_NONCE_SIZE] = { 0U };
 
 	/* compute the new cipher key and nonce */
-	qsc_cshake512_compute(prnd, sizeof(prnd), ssec, DKTP_SECRET_SIZE, DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE, pss, DKTP_SECRET_SIZE);
+	qsc_cshake512_compute(prnd, sizeof(prnd), ssec, DKTP_SECRET_SIZE, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE, pss, DKTP_SECRET_SIZE);
 
 	/* initialize and raise host channel */
 	qsc_rcs_keyparams kp;
