@@ -500,7 +500,7 @@ hek = H(ek || sph)
 shek = Ssk(pkh)
 The server sends a connect response message containing a signed hash of the public asymmetric encapsulation-key, 
 and a copy of that key.
-S{ shek || ek }-> C
+S{ shek || ek }-> C 
 */
 static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
