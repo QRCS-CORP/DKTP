@@ -133,7 +133,7 @@
 * used to verify a common domain identity between the peering hosts.
 * Default domain string is 16 characters: Domain : Device Group : Protocol and Version.
 */
-static const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE] = "QRCS:PDEF:DKTP1A";
+static const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof(char)] = "QRCS:PDEF:DKTP1A";
 
 /*!
 * \def DKTP_ASYMMETRIC_RATCHET
