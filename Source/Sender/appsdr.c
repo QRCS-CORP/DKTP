@@ -178,7 +178,7 @@ static void sender_local_peer_key_save(const dktp_local_peer_key* lpk)
 		qsc_folderutils_append_delimiter(fpath);
 		qsc_stringutils_concat_strings(fpath, sizeof(fpath), DKTP_SENDER_LOCAL_PEER_KEY_NAME);
 		dktp_local_peer_key_serialize(slpk, lpk);
-		qsc_fileutils_copy_stream_to_file(fpath, (char*)slpk, sizeof(slpk));
+		qsc_fileutils_copy_stream_to_file(fpath, (const char*)slpk, sizeof(slpk));
 		qsc_memutils_clear(slpk, sizeof(slpk));
 	}
 }
@@ -197,7 +197,7 @@ static void sender_remote_peer_key_save(const dktp_remote_peer_key* rpk)
 		qsc_folderutils_append_delimiter(fpath);
 		qsc_stringutils_concat_strings(fpath, sizeof(fpath), DKTP_LISTENER_REMOTE_PEER_KEY_NAME);
 		dktp_remote_peer_key_serialize(srpk, rpk);
-		qsc_fileutils_copy_stream_to_file(fpath, (char*)srpk, sizeof(srpk));
+		qsc_fileutils_copy_stream_to_file(fpath, (const char*)srpk, sizeof(srpk));
 		qsc_memutils_clear(srpk, sizeof(srpk));
 	}
 }
@@ -350,7 +350,7 @@ static bool sender_ipv4_dialogue(qsc_ipinfo_ipv4_address* address, dktp_local_pe
 					dktp_remote_peer_key_erase(&lrpk);
 
 					/* store the serialized remote peer key */
-					res = qsc_fileutils_copy_stream_to_file(fpath, srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
+					res = qsc_fileutils_copy_stream_to_file(fpath, (const char*)srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
 					qsc_memutils_clear(srpk, sizeof(srpk));
 
 					if (res == true)
@@ -368,7 +368,7 @@ static bool sender_ipv4_dialogue(qsc_ipinfo_ipv4_address* address, dktp_local_pe
 						qsc_memutils_copy(lpk->peerid, rpk->keyid, DKTP_KEYID_SIZE);
 						/* save the local peer key to file */
 						dktp_local_peer_key_serialize(slpk, lpk);
-						res = qsc_fileutils_copy_stream_to_file(fpath, (char*)slpk, sizeof(slpk));
+						res = qsc_fileutils_copy_stream_to_file(fpath, (const char*)slpk, sizeof(slpk));
 						qsc_memutils_clear(slpk, sizeof(slpk));
 
 						if (res == true)

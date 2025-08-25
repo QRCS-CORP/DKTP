@@ -179,7 +179,7 @@ static void listener_local_peer_key_save(const dktp_local_peer_key* lpk)
 		qsc_folderutils_append_delimiter(fpath);
 		qsc_stringutils_concat_strings(fpath, sizeof(fpath), DKTP_LISTENER_LOCAL_PEER_KEY_NAME);
 		dktp_local_peer_key_serialize(slpk, lpk);
-		qsc_fileutils_copy_stream_to_file(fpath, (char*)slpk, sizeof(slpk));
+		qsc_fileutils_copy_stream_to_file(fpath, (const char*)slpk, sizeof(slpk));
 		qsc_memutils_clear(slpk, sizeof(slpk));
 	}
 }
@@ -215,7 +215,7 @@ static void listener_remote_peer_key_save(const dktp_remote_peer_key* rpk)
 		qsc_folderutils_append_delimiter(fpath);
 		qsc_stringutils_concat_strings(fpath, sizeof(fpath), DKTP_SENDER_REMOTE_PEER_KEY_NAME);
 		dktp_remote_peer_key_serialize(srpk, rpk);
-		qsc_fileutils_copy_stream_to_file(fpath, (char*)srpk, sizeof(srpk));
+		qsc_fileutils_copy_stream_to_file(fpath, (const char*)srpk, sizeof(srpk));
 		qsc_memutils_clear(srpk, sizeof(srpk));
 	}
 }
@@ -283,7 +283,7 @@ static bool listener_key_dialogue(dktp_local_peer_key* lpk, dktp_remote_peer_key
 			{
 				dktp_generate_keypair(rpk, lpk, keyid);
 				dktp_remote_peer_key_serialize(srpk, rpk);
-				res = qsc_fileutils_copy_stream_to_file(fpath, srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
+				res = qsc_fileutils_copy_stream_to_file(fpath, (const char*)srpk, DKTP_REMOTE_PEER_KEY_ENCODED_SIZE);
 
 				if (res == true)
 				{
@@ -315,17 +315,8 @@ static bool listener_key_dialogue(dktp_local_peer_key* lpk, dktp_remote_peer_key
 							/* copy the remote peer key-id to the local peer key to link them */
 							qsc_memutils_copy(lpk->peerid, rpk->keyid, DKTP_KEYID_SIZE);
 
-
-							//qsc_stringutils_clear_string(fpath);
-							//qsc_stringutils_copy_string(fpath, sizeof(fpath), dir);
-							//qsc_folderutils_append_delimiter(fpath);
-							//qsc_stringutils_concat_strings(fpath, sizeof(fpath), DKTP_SENDER_REMOTE_PEER_KEY_NAME);
-							//qsc_fileutils_copy_stream_to_file(fpath, (char*)srpk, sizeof(srpk));
-
 							/* copy the file */
 							listener_remote_peer_key_save(rpk);
-
-
 							res = true;
 						}
 						else
