@@ -15,7 +15,7 @@
 [![Custom: Standard](https://img.shields.io/static/v1?label=Security%20Standard&message=MISRA&color=blue)](https://misra.org.uk/)
 [![Custom: Target](https://img.shields.io/static/v1?label=Target%20Industry&message=Communications&color=brightgreen)](#)
 
-**DKTP is a next-generation tunnel protocol that achieves up to 512-bit cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It enables post-quantum secure, mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
+**DKTP is a next-generation tunnel protocol that achieves 512-bit cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It enables post-quantum secure, mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
 
 [DKTP Help Documentation](https://qrcs-corp.github.io/DKTP/)  
 [DKTP Protocol Specification](https://qrcs-corp.github.io/DKTP/pdf/dktp_specification.pdf)  
@@ -28,7 +28,7 @@ DKTP combines post-quantum asymmetric key exchange, directional pre-shared secre
 - **Mutual authentication without a central certificate authority**
 - **Forward and post-compromise secrecy**, with ratcheting PSKs
 - **Separate transmit/receive channels**, each independently keyed
-- **Capable of full 512-bit cryptographic strength**, RCS-512, SHAKE-512, SHA3-512, and KMAC-512
+- **512-bit cryptographic strength**, RCS-512, SHAKE-512, SHA3-512, and KMAC-512
 - **Perfect configuration binding** via signed session cookies
 
 DKTP is especially suited for critical infrastructure, embedded systems, offline and sovereign networks, or any deployment needing long-term assurance without runtime PKI.
