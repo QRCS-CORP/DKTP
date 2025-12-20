@@ -73,12 +73,12 @@ DKTP integrates post-quantum secure algorithms in all phases of the handshake an
 
 DKTP defines a six-stage tunnel lifecycle that includes:
 
-1. **Connect Request** — client initiates with configuration string and signed session hash
-2. **Connect Response** — server provides signed ephemeral key
-3. **Exchange Request** — client encapsulates session secret
-4. **Exchange Response** — server responds with reciprocal ciphertext and signature
-5. **Establish Request** — client confirms tunnel keys via encrypted proof
-6. **Establish Response** — server verifies and finalizes session state
+1. **Connect Request** client initiates with configuration string and signed session hash
+2. **Connect Response** server provides signed ephemeral key
+3. **Exchange Request** client encapsulates session secret
+4. **Exchange Response** server responds with reciprocal ciphertext and signature
+5. **Establish Request** client confirms tunnel keys via encrypted proof
+6. **Establish Response** server verifies and finalizes session state
 
 Each session:
 - Uses **ephemeral asymmetric key pairs**
