@@ -18,8 +18,11 @@
 **DKTP is a next-generation tunnel protocol that achieves 512-bit cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It enables post-quantum secure, mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
 
 [DKTP Help Documentation](https://qrcs-corp.github.io/DKTP/)  
+[DKTP Summary Document](https://qrcs-corp.github.io/DKTP/pdf/dktp_summary.pdf)  
 [DKTP Protocol Specification](https://qrcs-corp.github.io/DKTP/pdf/dktp_specification.pdf)  
-[DKTP Summary Document](https://qrcs-corp.github.io/DKTP/pdf/dktp_summary.pdf)
+[DKTP Formal Analysis](https://qrcs-corp.github.io/DKTP/pdf/dktp_formal.pdf)  
+[DKTP Implementation Analysis](https://qrcs-corp.github.io/DKTP/pdf/dktp_analysis.pdf)  
+[DKTP Integration Guide](https://qrcs-corp.github.io/DKTP/pdf/dktp_integration.pdf)  
 
 ## Overview
 
@@ -142,9 +145,10 @@ Cryptography, Post-Quantum, Tunnel Protocol, Key Exchange, Dual-Entropy, Symmetr
 
 ## License
 
-ACQUISITION INQUIRIES:  
-QRCS is actively seeking licensing or acquisition opportunities for this technology.  
-Please contact: contact@qrcscorp.ca  
+INVESTMENT INQUIRIES:
+QRCS is currently seeking a corporate investor for this technology.
+Parties interested in licensing or investment should connect to us at: contact@qrcscorp.ca  
+Visit https://www.qrcscorp.ca for a full inventory of our products and services.  
 
 PATENT NOTICE:  
 One or more patent applications covering DKTP have been filed.  
