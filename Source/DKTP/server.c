@@ -170,19 +170,19 @@ static void server_receive_loop(void* prcv)
 							}
 							else
 							{
-								qsc_socket_exceptions err = qsc_socket_get_last_error();
+								qsc_socket_exceptions serr = qsc_socket_get_last_error();
 
-								if (err != qsc_socket_exception_success)
+								if (serr != qsc_socket_exception_success)
 								{
-									dktp_log_error(dktp_messages_receive_fail, err, cadd);
+									dktp_log_error(dktp_messages_receive_fail, serr, cadd);
 
 									/* fatal socket errors */
-									if (err == qsc_socket_exception_circuit_reset ||
-										err == qsc_socket_exception_circuit_terminated ||
-										err == qsc_socket_exception_circuit_timeout ||
-										err == qsc_socket_exception_dropped_connection ||
-										err == qsc_socket_exception_network_failure ||
-										err == qsc_socket_exception_shut_down)
+									if (serr == qsc_socket_exception_circuit_reset ||
+										serr == qsc_socket_exception_circuit_terminated ||
+										serr == qsc_socket_exception_circuit_timeout ||
+										serr == qsc_socket_exception_dropped_connection ||
+										serr == qsc_socket_exception_network_failure ||
+										serr == qsc_socket_exception_shut_down)
 									{
 										dktp_log_write(dktp_messages_connection_fail, cadd);
 									}
