@@ -323,7 +323,7 @@ static void client_receive_loop(void* prcv)
 	size_t mlen;
 	size_t plen;
 	size_t slen;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	pprcv = (client_receiver_state*)prcv;
 	qsc_memutils_copy(cadd, (const char*)pprcv->pcns->target.address, sizeof(cadd));
@@ -372,9 +372,9 @@ static void client_receive_loop(void* prcv)
 								if (rmsg != NULL)
 								{
 									qsc_memutils_clear(rmsg, slen);
-									qerr = dktp_packet_decrypt(pprcv->pcns, rmsg, &mlen, &pkt);
+									err = dktp_packet_decrypt(pprcv->pcns, rmsg, &mlen, &pkt);
 
-									if (qerr == dktp_error_none)
+									if (err == dktp_error_none)
 									{
 										pprcv->callback(pprcv->pcns, rmsg, mlen);
 									}
@@ -484,9 +484,9 @@ static dktp_errors listener_send_keep_alive(dktp_keepalive_state* kctx, const qs
 	DKTP_ASSERT(kctx != NULL);
 	DKTP_ASSERT(sock != NULL);
 
-	dktp_errors qerr;
+	dktp_errors err;
 
-	qerr = dktp_error_bad_keep_alive;
+	err = dktp_error_bad_keep_alive;
 
 	if (qsc_socket_is_connected(sock) == true)
 	{
@@ -511,11 +511,11 @@ static dktp_errors listener_send_keep_alive(dktp_keepalive_state* kctx, const qs
 
 		if (slen == DKTP_HEADER_SIZE + DKTP_TIMESTAMP_SIZE)
 		{
-			qerr = dktp_error_none;
+			err = dktp_error_none;
 		}
 	}
 
-	return qerr;
+	return err;
 }
 
 static dktp_errors listener_keepalive_loop(dktp_keepalive_state* kpa)
@@ -523,25 +523,25 @@ static dktp_errors listener_keepalive_loop(dktp_keepalive_state* kpa)
 	DKTP_ASSERT(kpa != NULL);
 
 	qsc_mutex mtx;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	do
 	{
 		mtx = qsc_async_mutex_lock_ex();
 		kpa->recd = false;
-		qerr = listener_send_keep_alive(kpa, &kpa->target);
+		err = listener_send_keep_alive(kpa, &kpa->target);
 
 		if (kpa->recd == false)
 		{
-			qerr = dktp_error_keepalive_expired;
+			err = dktp_error_keepalive_expired;
 		}
 
 		qsc_async_mutex_unlock_ex(mtx);
 		qsc_async_thread_sleep(DKTP_KEEPALIVE_TIMEOUT);
 	} 
-	while (qerr == dktp_error_none);
+	while (err == dktp_error_none);
 
-	return qerr;
+	return err;
 }
 
 static void listener_receive_loop(listener_receiver_state* prcv)
@@ -554,8 +554,9 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 	size_t mlen;
 	size_t plen;
 	size_t slen;
-	dktp_errors qerr;
+	dktp_errors err;
 
+	err = dktp_error_general_failure;
 	qsc_memutils_copy(cadd, (const char*)prcv->pcns->target.address, sizeof(cadd));
 
 	rbuf = (uint8_t*)qsc_memutils_malloc(DKTP_HEADER_SIZE);
@@ -602,9 +603,9 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 								if (rmsg != NULL)
 								{
 									qsc_memutils_clear(rmsg, slen);
-									qerr = dktp_packet_decrypt(prcv->pcns, rmsg, &mlen, &pkt);
+									err = dktp_packet_decrypt(prcv->pcns, rmsg, &mlen, &pkt);
 
-									if (qerr == dktp_error_none)
+									if (err == dktp_error_none)
 									{
 										prcv->callback(prcv->pcns, rmsg, mlen);
 									}
@@ -625,10 +626,15 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 									break;
 								}
 							}
-							else if (pkt.flag == dktp_flag_connection_terminate)
+							else if (pkt.flag == dktp_flag_error_condition)
 							{
-								dktp_log_write(dktp_messages_disconnect, cadd);
-								break;
+								/* anti-dos: break on error message is conditional
+								   on succesful authentication/decryption */
+								if (dktp_decrypt_error_message(&err, prcv->pcns, rbuf) == true)
+								{
+									dktp_log_system_error(err);
+									break;
+								}
 							}
 							else if (pkt.flag == dktp_flag_keep_alive_response)
 							{
@@ -692,7 +698,6 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 										err == qsc_socket_exception_shut_down)
 									{
 										dktp_log_write(dktp_messages_connection_fail, cadd);
-										break;
 									}
 								}
 							}
@@ -758,10 +763,10 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 	listener_receive_loop_args largs = { 0 };
 	listener_keepalive_loop_args kargs = { 0 };
 	dktp_kex_server_state* pkss;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	dktp_logger_initialize(NULL);
-	qerr = dktp_error_invalid_input;
+	err = dktp_error_invalid_input;
 	pkss = (dktp_kex_server_state*)qsc_memutils_malloc(sizeof(dktp_kex_server_state));
 
 	if (pkss != NULL)
@@ -770,9 +775,9 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 
 		/* initialize the kex */
 		listener_state_initialize(pkss, prcv, lpk, rpk);
-		qerr = dktp_kex_server_key_exchange(pkss, prcv->pcns);
+		err = dktp_kex_server_key_exchange(pkss, prcv->pcns);
 
-		if (qerr == dktp_error_none)
+		if (err == dktp_error_none)
 		{
 			/* update the pre-shared keys after the exchange */
 			qsc_memutils_copy(lpk->pss, pkss->pssl, DKTP_SECRET_SIZE);
@@ -793,7 +798,7 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 		qsc_memutils_alloc_free(pkss);
 		pkss = NULL;
 
-		if (qerr == dktp_error_none)
+		if (err == dktp_error_none)
 		{
 			/* start the keep-alive mechanism on a new thread */
 			kargs.pkpa = prcv->pkpa;
@@ -815,7 +820,7 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 		}
 	}
 
-	return qerr;
+	return err;
 }
 
 /** \endcond */
@@ -923,7 +928,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 	dktp_kex_client_state* kcs;
 	client_receiver_state* prcv;
 	qsc_socket_exceptions serr;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	kcs = NULL;
 	prcv = NULL;
@@ -959,7 +964,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 							/* initialize the client */
 							client_state_initialize(kcs, prcv->pcns, lpk, rpk);
 							/* perform the simplex key exchange */
-							qerr = dktp_kex_client_key_exchange(kcs, prcv->pcns);
+							err = dktp_kex_client_key_exchange(kcs, prcv->pcns);
 							
 							/* update the pre-shared secrets */
 							qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
@@ -968,7 +973,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 							/* clear the kex state */
 							client_kex_reset(kcs);
 
-							if (qerr == dktp_error_none)
+							if (err == dktp_error_none)
 							{
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 								/* store the local signing key and the remote verify key for asymmetyric ratchet option */
@@ -995,7 +1000,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 							else
 							{
 								dktp_log_write(dktp_messages_kex_fail, (const char*)prcv->pcns->target.address);
-								qerr = dktp_error_exchange_failure;
+								err = dktp_error_exchange_failure;
 							}
 
 							/* disconnect the socket */
@@ -1004,7 +1009,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 						else
 						{
 							dktp_log_write(dktp_messages_kex_fail, (const char*)prcv->pcns->target.address);
-							qerr = dktp_error_connection_failure;
+							err = dktp_error_connection_failure;
 						}
 
 						qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
@@ -1014,7 +1019,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 					else
 					{
 						dktp_log_message(dktp_messages_allocate_fail);
-						qerr = dktp_error_memory_allocation;
+						err = dktp_error_memory_allocation;
 					}
 
 					qsc_memutils_clear(prcv, sizeof(client_receiver_state));
@@ -1024,7 +1029,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 				else
 				{
 					dktp_log_message(dktp_messages_allocate_fail);
-					qerr = dktp_error_memory_allocation;
+					err = dktp_error_memory_allocation;
 				}
 
 				qsc_memutils_alloc_free(kcs);
@@ -1033,22 +1038,22 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 			else
 			{
 				dktp_log_message(dktp_messages_allocate_fail);
-				qerr = dktp_error_memory_allocation;
+				err = dktp_error_memory_allocation;
 			}
 		}
 		else
 		{
 			dktp_log_message(dktp_messages_peer_key_mismatch);
-			qerr = dktp_error_peer_key_mismatch;
+			err = dktp_error_peer_key_mismatch;
 		}
 	}
 	else
 	{
 		dktp_log_message(dktp_messages_invalid_request);
-		qerr = dktp_error_invalid_input;
+		err = dktp_error_invalid_input;
 	}
 
-	return qerr;
+	return err;
 }
 
 dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk, 
@@ -1066,7 +1071,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 	dktp_kex_client_state* kcs;
 	client_receiver_state* prcv;
 	qsc_socket_exceptions serr;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	kcs = NULL;
 	prcv = NULL;
@@ -1102,7 +1107,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 							/* initialize the client */
 							client_state_initialize(kcs, prcv->pcns, lpk, rpk);
 							/* perform the simplex key exchange */
-							qerr = dktp_kex_client_key_exchange(kcs, prcv->pcns);
+							err = dktp_kex_client_key_exchange(kcs, prcv->pcns);
 							
 							/* update the pre-shared secrets */
 							qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
@@ -1111,7 +1116,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 							/* clear the kex state */
 							client_kex_reset(kcs);
 
-							if (qerr == dktp_error_none)
+							if (err == dktp_error_none)
 							{
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 								/* store the local signing key and the remote verify key for asymmetyric ratchet option */
@@ -1141,13 +1146,13 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 							else
 							{
 								dktp_log_write(dktp_messages_kex_fail, (const char*)prcv->pcns->target.address);
-								qerr = dktp_error_exchange_failure;
+								err = dktp_error_exchange_failure;
 							}
 						}
 						else
 						{
 							dktp_log_write(dktp_messages_kex_fail, (const char*)prcv->pcns->target.address);
-							qerr = dktp_error_connection_failure;
+							err = dktp_error_connection_failure;
 						}
 
 						qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
@@ -1157,7 +1162,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 					else
 					{
 						dktp_log_message(dktp_messages_allocate_fail);
-						qerr = dktp_error_memory_allocation;
+						err = dktp_error_memory_allocation;
 					}
 
 					qsc_memutils_clear(prcv, sizeof(client_receiver_state));
@@ -1167,7 +1172,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 				else
 				{
 					dktp_log_message(dktp_messages_allocate_fail);
-					qerr = dktp_error_memory_allocation;
+					err = dktp_error_memory_allocation;
 				}
 
 				qsc_memutils_alloc_free(kcs);
@@ -1176,22 +1181,22 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 			else
 			{
 				dktp_log_message(dktp_messages_allocate_fail);
-				qerr = dktp_error_memory_allocation;
+				err = dktp_error_memory_allocation;
 			}
 		}
 		else
 		{
 			dktp_log_message(dktp_messages_peer_key_mismatch);
-			qerr = dktp_error_peer_key_mismatch;
+			err = dktp_error_peer_key_mismatch;
 		}
 	}
 	else
 	{
 		dktp_log_message(dktp_messages_invalid_request);
-		qerr = dktp_error_invalid_input;
+		err = dktp_error_invalid_input;
 	}
 
-	return qerr;
+	return err;
 }
 
 dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk, 
@@ -1208,7 +1213,7 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 	listener_receiver_state* prcv;
 	qsc_socket srvs;
 	qsc_socket_exceptions serr;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	dktp_logger_initialize(NULL);
 	prcv = NULL;
@@ -1242,12 +1247,12 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 
 						if (serr == qsc_socket_exception_success)
 						{
-							qerr = listener_start(lpk, rpk, prcv, send_func);
+							err = listener_start(lpk, rpk, prcv, send_func);
 						}
 						else
 						{
 							dktp_log_message(dktp_messages_connection_fail);
-							qerr = dktp_error_connection_failure;
+							err = dktp_error_connection_failure;
 						}
 
 						qsc_memutils_clear(prcv->pkpa, sizeof(dktp_keepalive_state));
@@ -1257,7 +1262,7 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 					else
 					{
 						dktp_log_message(dktp_messages_allocate_fail);
-						qerr = dktp_error_memory_allocation;
+						err = dktp_error_memory_allocation;
 					}
 
 					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
@@ -1267,7 +1272,7 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 				else
 				{
 					dktp_log_message(dktp_messages_allocate_fail);
-					qerr = dktp_error_memory_allocation;
+					err = dktp_error_memory_allocation;
 				}
 
 				qsc_memutils_clear(prcv, sizeof(listener_receiver_state));
@@ -1277,22 +1282,22 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 			else
 			{
 				dktp_log_message(dktp_messages_allocate_fail);
-				qerr = dktp_error_memory_allocation;
+				err = dktp_error_memory_allocation;
 			}
 		}
 		else
 		{
 			dktp_log_message(dktp_messages_peer_key_mismatch);
-			qerr = dktp_error_peer_key_mismatch;
+			err = dktp_error_peer_key_mismatch;
 		}
 	}
 	else
 	{
 		dktp_log_message(dktp_messages_invalid_request);
-		qerr = dktp_error_invalid_input;
+		err = dktp_error_invalid_input;
 	}
 
-	return qerr;
+	return err;
 }
 
 dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
@@ -1309,7 +1314,7 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 	listener_receiver_state* prcv;
 	qsc_socket srvs;
 	qsc_socket_exceptions serr;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	dktp_logger_initialize(NULL);
 	prcv = NULL;
@@ -1343,12 +1348,12 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 
 						if (serr == qsc_socket_exception_success)
 						{
-							qerr = listener_start(lpk, rpk, prcv, send_func);
+							err = listener_start(lpk, rpk, prcv, send_func);
 						}
 						else
 						{
 							dktp_log_message(dktp_messages_connection_fail);
-							qerr = dktp_error_connection_failure;
+							err = dktp_error_connection_failure;
 						}
 
 						qsc_memutils_clear(prcv->pkpa, sizeof(dktp_keepalive_state));
@@ -1358,7 +1363,7 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 					else
 					{
 						dktp_log_message(dktp_messages_allocate_fail);
-						qerr = dktp_error_memory_allocation;
+						err = dktp_error_memory_allocation;
 					}
 
 					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
@@ -1368,7 +1373,7 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 				else
 				{
 					dktp_log_message(dktp_messages_allocate_fail);
-					qerr = dktp_error_memory_allocation;
+					err = dktp_error_memory_allocation;
 				}
 
 				qsc_memutils_clear(prcv, sizeof(listener_receiver_state));
@@ -1378,20 +1383,20 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 			else
 			{
 				dktp_log_message(dktp_messages_allocate_fail);
-				qerr = dktp_error_memory_allocation;
+				err = dktp_error_memory_allocation;
 			}
 		}
 		else
 		{
 			dktp_log_message(dktp_messages_peer_key_mismatch);
-			qerr = dktp_error_peer_key_mismatch;
+			err = dktp_error_peer_key_mismatch;
 		}
 	}
 	else
 	{
 		dktp_log_message(dktp_messages_invalid_request);
-		qerr = dktp_error_invalid_input;
+		err = dktp_error_invalid_input;
 	}
 
-	return qerr;
+	return err;
 }

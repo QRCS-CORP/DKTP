@@ -418,7 +418,7 @@ static void listener_send_loop(dktp_connection_state* cns)
 		}
 	}
 
-	dktp_connection_close(cns, dktp_error_none, true);
+	dktp_connection_close(cns, dktp_error_disconnect_request, true);
 }
 
 int main(void)

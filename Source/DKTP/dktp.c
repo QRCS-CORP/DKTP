@@ -18,56 +18,42 @@ void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool not
 		{
 			if (notify == true)
 			{
-				if (err == dktp_error_none)
+				dktp_network_packet resp = { 0U };
+
+				/* build a disconnect message */
+				cns->txseq += 1U;
+				resp.flag = dktp_flag_error_condition;
+				resp.sequence = cns->txseq;
+				resp.msglen = DKTP_MACTAG_SIZE + 1U;
+				dktp_packet_set_utc_time(&resp);
+
+				/* tunnel gets encrypted message */
+				if (cns->exflag == dktp_flag_session_established)
 				{
-					dktp_network_packet resp = { 0 };
-					uint8_t spct[DKTP_HEADER_SIZE] = { 0U };
+					uint8_t spct[DKTP_HEADER_SIZE + DKTP_MACTAG_SIZE + 1U] = { 0U };
+					uint8_t pmsg[1U] = { 0U };
 
-					/* send a disconnect message */
 					resp.pmessage = spct + DKTP_HEADER_SIZE;
-					resp.flag = dktp_flag_connection_terminate;
-					resp.sequence = DKTP_SEQUENCE_TERMINATOR;
-					resp.msglen = 0U;
-					resp.pmessage = NULL;
-
 					dktp_packet_header_serialize(&resp, spct);
+					/* the error is the message, error=none on disconnect */
+					pmsg[0U] = (uint8_t)err;
+
+					/* add the header to aad */
+					qsc_rcs_set_associated(&cns->txcpr, spct, DKTP_HEADER_SIZE);
+					/* encrypt the message */
+					qsc_rcs_transform(&cns->txcpr, resp.pmessage, pmsg, sizeof(pmsg));
+					/* send the message */
 					qsc_socket_send(&cns->target, spct, sizeof(spct), qsc_socket_send_flag_none);
 				}
 				else
 				{
-					/* send an error message */
-					dktp_network_packet resp = { 0 };
+					/* pre-established phase */
+					uint8_t spct[DKTP_HEADER_SIZE + 1U] = { 0U };
 
-					uint8_t perr[DKTP_ERROR_MESSAGE_SIZE] = { 0U };
-					uint8_t* spct;
-					size_t mlen;
-					dktp_errors qerr;
-
-					mlen = DKTP_HEADER_SIZE + DKTP_FLAG_SIZE + DKTP_MACTAG_SIZE;
-					spct = (uint8_t*)qsc_memutils_malloc(mlen);
-
-					if (spct != NULL)
-					{
-						qsc_memutils_clear(spct, mlen);
-
-						/* send a disconnect message */
-						resp.pmessage = spct + DKTP_HEADER_SIZE;
-						resp.flag = dktp_flag_connection_terminate;
-						resp.sequence = DKTP_SEQUENCE_TERMINATOR;
-						resp.msglen = DKTP_ERROR_MESSAGE_SIZE;
-						resp.pmessage = spct + DKTP_HEADER_SIZE;
-						perr[0U] = err;
-
-						qerr = dktp_packet_encrypt(cns, &resp, perr, DKTP_ERROR_MESSAGE_SIZE);
-
-						if (qerr == dktp_error_none)
-						{
-							dktp_packet_header_serialize(&resp, spct);
-							qsc_socket_send(&cns->target, spct, sizeof(spct), qsc_socket_send_flag_none);
-						}
-
-						qsc_memutils_alloc_free(spct);
-					}
+					dktp_packet_header_serialize(&resp, spct);
+					spct[DKTP_HEADER_SIZE] = (uint8_t)err;
+					/* send the message */
+					qsc_socket_send(&cns->target, spct, sizeof(spct), qsc_socket_send_flag_none);
 				}
 			}
 
@@ -75,6 +61,60 @@ void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool not
 			qsc_socket_close_socket(&cns->target);
 		}
 	}
+}
+
+bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, const uint8_t* message)
+{
+	DKTP_ASSERT(cns != NULL);
+	DKTP_ASSERT(message != NULL);
+
+	dktp_network_packet pkt = { 0U };
+	uint8_t dmsg[1U] = { 0U };
+	const uint8_t* emsg;
+	size_t mlen;
+	dktp_errors err;
+	bool res;
+
+	res = false;
+	err = dktp_error_invalid_input;
+
+	if (cns->exflag == dktp_flag_session_established)
+	{
+		dktp_packet_header_deserialize(message, &pkt);
+		emsg = message + DKTP_HEADER_SIZE;
+
+		if (cns != NULL && message != NULL)
+		{
+			cns->rxseq += 1;
+
+			if (pkt.sequence == cns->rxseq)
+			{
+				if (cns->exflag == dktp_flag_session_established)
+				{
+					/* anti-replay; verify the packet time */
+					if (dktp_packet_time_valid(&pkt) == true)
+					{
+						qsc_rcs_set_associated(&cns->rxcpr, message, DKTP_HEADER_SIZE);
+						mlen = pkt.msglen - DKTP_MACTAG_SIZE;
+
+						if (mlen == 1U)
+						{
+							/* authenticate then decrypt the data */
+							if (qsc_rcs_transform(&cns->rxcpr, dmsg, emsg, mlen) == true)
+							{
+								err = (dktp_errors)dmsg[0U];
+								res = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	*merr = err;
+
+	return res;
 }
 
 void dktp_connection_state_dispose(dktp_connection_state* cns)
@@ -265,6 +305,21 @@ void dktp_log_message(dktp_messages emsg)
 	{
 		dktp_logger_write(msg);
 	}
+}
+
+void dktp_log_system_error(dktp_errors err)
+{
+	char mtmp[DKTP_ERROR_STRING_WIDTH * 2] = { 0 };
+	const char* perr;
+	const char* pmsg;
+
+	pmsg = dktp_error_to_string(err);
+	perr = dktp_get_error_description(dktp_messages_system_message);
+
+	qsc_stringutils_copy_string(mtmp, sizeof(mtmp), pmsg);
+	qsc_stringutils_concat_strings(mtmp, sizeof(mtmp), perr);
+
+	dktp_logger_write(mtmp);
 }
 
 void dktp_log_write(dktp_messages emsg, const char* msg)

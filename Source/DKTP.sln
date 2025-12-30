@@ -5,11 +5,6 @@ VisualStudioVersion = 17.12.35521.163
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "QSC", "..\QSC\QSC\QSC.vcxproj", "{7B7F8E47-0F7C-4273-A229-A7AB2A452EA9}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3C7E0B00-006C-4F59-B63C-BDBFD288AE28}"
-	ProjectSection(SolutionItems) = preProject
-		QSMP\QRCS-PL License.txt = QSMP\QRCS-PL License.txt
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DKTP", "DKTP\DKTP.vcxproj", "{9AE666D7-5058-4F72-AC1D-B685E1BCEFD6}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DKTP Listener", "Listener\DKTP Listener.vcxproj", "{F055B7DE-1573-4E54-8116-2E92159F5B33}"

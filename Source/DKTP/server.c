@@ -70,8 +70,9 @@ static void server_receive_loop(void* prcv)
 	size_t mlen;
 	size_t plen;
 	size_t slen;
-	dktp_errors qerr;
+	dktp_errors err;
 
+	err = dktp_error_general_failure;
 	pprcv = (server_receiver_state*)prcv;
 	qsc_memutils_copy(cadd, (const char*)pprcv->pcns->target.address, sizeof(cadd));
 	pkss = (dktp_kex_server_state*)qsc_memutils_malloc(sizeof(dktp_kex_server_state));
@@ -79,11 +80,11 @@ static void server_receive_loop(void* prcv)
 	if (pkss != NULL)
 	{
 		server_state_initialize(pkss, pprcv);
-		qerr = dktp_kex_server_key_exchange(pkss, pprcv->pcns);
+		err = dktp_kex_server_key_exchange(pkss, pprcv->pcns);
 		qsc_memutils_alloc_free(pkss);
 		pkss = NULL;
 
-		if (qerr == dktp_error_none)
+		if (err == dktp_error_none)
 		{
 			rbuf = (uint8_t*)qsc_memutils_malloc(DKTP_HEADER_SIZE);
 
@@ -133,9 +134,9 @@ static void server_receive_loop(void* prcv)
 									{
 										qsc_memutils_clear(mstr, slen);
 
-										qerr = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
+										err = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
 
-										if (qerr == dktp_error_none)
+										if (err == dktp_error_none)
 										{
 											pprcv->receive_callback(pprcv->pcns, mstr, mlen);
 										}
@@ -156,16 +157,15 @@ static void server_receive_loop(void* prcv)
 										break;
 									}
 								}
-								else if (pkt.flag == dktp_flag_connection_terminate)
+								else if (pkt.flag == dktp_flag_error_condition)
 								{
-									dktp_log_write(dktp_messages_disconnect, cadd);
-									break;
-								}
-								else
-								{
-									/* unknown message type, we fail out of caution but could ignore */
-									dktp_log_write(dktp_messages_receive_fail, cadd);
-									break;
+									/* anti-dos: break on error message is conditional
+									   on succesful authentication/decryption */
+									if (dktp_decrypt_error_message(&err, pprcv->pcns, rbuf) == true)
+									{
+										dktp_log_system_error(err);
+										break;
+									}
 								}
 							}
 							else
@@ -185,7 +185,6 @@ static void server_receive_loop(void* prcv)
 										err == qsc_socket_exception_shut_down)
 									{
 										dktp_log_write(dktp_messages_connection_fail, cadd);
-										break;
 									}
 								}
 							}
@@ -240,9 +239,9 @@ static dktp_errors server_start(const dktp_local_peer_key* lpk,
 	DKTP_ASSERT(receive_callback != NULL);
 
 	qsc_socket_exceptions res;
-	dktp_errors qerr;
+	dktp_errors err;
 
-	qerr = dktp_error_none;
+	err = dktp_error_none;
 	m_server_pause = false;
 	m_server_run = true;
 	dktp_logger_initialize(NULL);
@@ -276,20 +275,20 @@ static dktp_errors server_start(const dktp_local_peer_key* lpk,
 				else
 				{
 					dktp_connections_reset(cns->cid);
-					qerr = dktp_error_memory_allocation;
+					err = dktp_error_memory_allocation;
 					dktp_log_message(dktp_messages_sockalloc_fail);
 				}
 			}
 			else
 			{
 				dktp_connections_reset(cns->cid);
-				qerr = dktp_error_accept_fail;
+				err = dktp_error_accept_fail;
 				dktp_log_message(dktp_messages_accept_fail);
 			}
 		}
 		else
 		{
-			qerr = dktp_error_hosts_exceeded;
+			err = dktp_error_hosts_exceeded;
 			dktp_log_message(dktp_messages_queue_empty);
 		}
 
@@ -300,7 +299,7 @@ static dktp_errors server_start(const dktp_local_peer_key* lpk,
 	} 
 	while (m_server_run == true);
 
-	return qerr;
+	return err;
 }
 /** \endcond */
 
@@ -386,7 +385,7 @@ dktp_errors dktp_server_start_ipv4(qsc_socket* source,
 
 	qsc_ipinfo_ipv4_address addt = { 0 };
 	qsc_socket_exceptions res;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	addt = qsc_ipinfo_ipv4_address_any();
 	qsc_socket_server_initialize(source);
@@ -402,27 +401,27 @@ dktp_errors dktp_server_start_ipv4(qsc_socket* source,
 
 			if (res == qsc_socket_exception_success)
 			{
-				qerr = server_start(lpk, source, receive_callback, disconnect_callback);
+				err = server_start(lpk, source, receive_callback, disconnect_callback);
 			}
 			else
 			{
-				qerr = dktp_error_listener_fail;
+				err = dktp_error_listener_fail;
 				dktp_log_message(dktp_messages_listener_fail);
 			}
 		}
 		else
 		{
-			qerr = dktp_error_connection_failure;
+			err = dktp_error_connection_failure;
 			dktp_log_message(dktp_messages_bind_fail);
 		}
 	}
 	else
 	{
-		qerr = dktp_error_connection_failure;
+		err = dktp_error_connection_failure;
 		dktp_log_message(dktp_messages_create_fail);
 	}
 
-	return qerr;
+	return err;
 }
 
 dktp_errors dktp_server_start_ipv6(qsc_socket* source,
@@ -435,7 +434,7 @@ dktp_errors dktp_server_start_ipv6(qsc_socket* source,
 
 	qsc_ipinfo_ipv6_address addt = { 0 };
 	qsc_socket_exceptions res;
-	dktp_errors qerr;
+	dktp_errors err;
 
 	addt = qsc_ipinfo_ipv6_address_any();
 	qsc_socket_server_initialize(source);
@@ -451,25 +450,25 @@ dktp_errors dktp_server_start_ipv6(qsc_socket* source,
 
 			if (res == qsc_socket_exception_success)
 			{
-				qerr = server_start(lpk, source, receive_callback, disconnect_callback);
+				err = server_start(lpk, source, receive_callback, disconnect_callback);
 			}
 			else
 			{
-				qerr = dktp_error_listener_fail;
+				err = dktp_error_listener_fail;
 				dktp_log_message(dktp_messages_listener_fail);
 			}
 		}
 		else
 		{
-			qerr = dktp_error_connection_failure;
+			err = dktp_error_connection_failure;
 			dktp_log_message(dktp_messages_bind_fail);
 		}
 	}
 	else
 	{
-		qerr = dktp_error_connection_failure;
+		err = dktp_error_connection_failure;
 		dktp_log_message(dktp_messages_create_fail);
 	}
 
-	return qerr;
+	return err;
 }
