@@ -22,7 +22,7 @@ FetchContent_MakeAvailable(QSC)
 
 # DKTP Static Library
 file(GLOB_RECURSE DKTP_SOURCES "Source/DKTP/*.c")
-file(GLOB_RECURSE DKTP_HEADERS "Source/DKTP/include/*.h")
+file(GLOB_RECURSE DKTP_HEADERS "Source/DKTP/*.h")
 
 add_library(dktp STATIC ${DKTP_SOURCES} ${DKTP_HEADERS})
 target_include_directories(dktp PUBLIC "Source/DKTP")
