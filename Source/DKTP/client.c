@@ -413,7 +413,7 @@ static void client_receive_loop(void* prcv)
 							{
 								if (asymmetric_ratchet_response(pprcv->pcns, &pkt) == false)
 								{
-									dktp_log_write(dktp_messages_keepalive_timeout, (const char*)pprcv->pcns->target.address);
+									dktp_log_write(dktp_messages_asymmetric_ratchet, (const char*)pprcv->pcns->target.address);
 									break;
 								}
 							}
@@ -421,7 +421,7 @@ static void client_receive_loop(void* prcv)
 							{
 								if (asymmetric_ratchet_finalize(pprcv->pcns, &pkt) == false)
 								{
-									dktp_log_write(dktp_messages_keepalive_timeout, (const char*)pprcv->pcns->target.address);
+									dktp_log_write(dktp_messages_asymmetric_ratchet, (const char*)pprcv->pcns->target.address);
 									break;
 								}
 							}

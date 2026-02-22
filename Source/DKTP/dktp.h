@@ -687,7 +687,7 @@ static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_
 * \def DKTP_MESSAGE_STRING_DEPTH
 * \brief The depth of the DKTP message string array
 */
-#define DKTP_MESSAGE_STRING_DEPTH 22U
+#define DKTP_MESSAGE_STRING_DEPTH 23U
 /*!
 * \def DKTP_MESSAGE_STRING_WIDTH
 * \brief The width of each DKTP message string
@@ -718,7 +718,8 @@ static const char DKTP_MESSAGE_STRINGS[DKTP_MESSAGE_STRING_DEPTH][DKTP_MESSAGE_S
 	"The connection failed or was interrupted. ",
 	"The function received an invalid request. ",
 	"The remote peer identity does not match the local key. ",
-	"The host encountered an error: "
+	"The host encountered an error: ",
+	"The host received an asymmetric ratchet request"
 };
 /** \endcond */
 
@@ -766,6 +767,7 @@ DKTP_EXPORT_API typedef enum dktp_messages
 	dktp_messages_invalid_request = 0x13U,			/*!< The function received an invalid request */
 	dktp_messages_peer_key_mismatch = 0x14U,		/*!< The remote peer identity does not match the local key */
 	dktp_messages_system_message = 0x15U,			/*!< The host encountered an error */
+	dktp_messages_asymmetric_ratchet = 0x14U,		/*!< The host received an asymmetric ratchet request */
 } dktp_messages;
 
 /*!
