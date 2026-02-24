@@ -638,7 +638,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s
 * \def DKTP_ERROR_STRING_DEPTH
 * \brief The depth of the DKTP error string array
 */
-#define DKTP_ERROR_STRING_DEPTH 32U
+#define DKTP_ERROR_STRING_DEPTH 29U
 
 /*!
 * \def DKTP_ERROR_STRING_WIDTH
@@ -652,7 +652,6 @@ static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_
 	"No error was detected",
 	"The socket accept function returned an error",
 	"The symmetric cipher had an authentication failure",
-	"The keep alive check failed",
 	"The communications channel has failed",
 	"The device could not make a connection to the remote host",
 	"The transmission failed at the KEX connection phase",
@@ -664,9 +663,7 @@ static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_
 	"The server has run out of socket connections",
 	"The expected input was invalid",
 	"The packet flag was unexpected",
-	"The keep alive has expired with no response",
-	"The decryption authentication has failed",
-	"The DKTP public key has expired ",
+	"The DKTP public key has expired",
 	"The key identity is unrecognized",
 	"The ratchet operation has failed",
 	"The listener function failed to initialize",
@@ -688,7 +685,7 @@ static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_
 * \def DKTP_MESSAGE_STRING_DEPTH
 * \brief The depth of the DKTP message string array
 */
-#define DKTP_MESSAGE_STRING_DEPTH 23U
+#define DKTP_MESSAGE_STRING_DEPTH 21U
 
 /*!
 * \def DKTP_MESSAGE_STRING_WIDTH
@@ -715,8 +712,6 @@ static const char DKTP_MESSAGE_STRINGS[DKTP_MESSAGE_STRING_DEPTH][DKTP_MESSAGE_S
 	"The server listener socket has failed. ",
 	"The server has run out of socket connections. ",
 	"The message decryption has failed. ",
-	"The keepalive function has failed. ",
-	"The keepalive period has been exceeded. ",
 	"The connection failed or was interrupted. ",
 	"The function received an invalid request. ",
 	"The remote peer identity does not match the local key. ",
@@ -775,13 +770,11 @@ DKTP_EXPORT_API typedef enum dktp_messages
 	dktp_messages_listener_fail = 0x0DU,			/*!< The server listener socket has failed */
 	dktp_messages_sockalloc_fail = 0x0EU,			/*!< The server has run out of socket connections */
 	dktp_messages_decryption_fail = 0x0FU,			/*!< The message decryption has failed */
-	dktp_messages_keepalive_fail = 0x10U,			/*!< The keepalive function has failed */
-	dktp_messages_keepalive_timeout = 0x11U,		/*!< The keepalive period has been exceeded */
-	dktp_messages_connection_fail = 0x12U,			/*!< The connection failed or was interrupted */
-	dktp_messages_invalid_request = 0x13U,			/*!< The function received an invalid request */
-	dktp_messages_peer_key_mismatch = 0x14U,		/*!< The remote peer identity does not match the local key */
-	dktp_messages_system_message = 0x15U,			/*!< The host encountered an error */
-	dktp_messages_asymmetric_ratchet = 0x16U,		/*!< The host received an asymmetric ratchet request */
+	dktp_messages_connection_fail = 0x10U,			/*!< The connection failed or was interrupted */
+	dktp_messages_invalid_request = 0x11U,			/*!< The function received an invalid request */
+	dktp_messages_peer_key_mismatch = 0x12U,		/*!< The remote peer identity does not match the local key */
+	dktp_messages_system_message = 0x13U,			/*!< The host encountered an error */
+	dktp_messages_asymmetric_ratchet = 0x14U,		/*!< The host received an asymmetric ratchet request */
 } dktp_messages;
 
 /*!
@@ -793,35 +786,32 @@ DKTP_EXPORT_API typedef enum dktp_errors
 	dktp_error_none = 0x00U,						/*!< No error was detected */
 	dktp_error_accept_fail = 0x01U,					/*!< The socket accept function returned an error */
 	dktp_error_authentication_failure = 0x02U,		/*!< The symmetric cipher had an authentication failure */
-	dktp_error_bad_keep_alive = 0x03U,				/*!< The keep alive check failed */
-	dktp_error_channel_down = 0x04U,				/*!< The communications channel has failed */
-	dktp_error_connection_failure = 0x05U,			/*!< The device could not make a connection to the remote host */
-	dktp_error_connect_failure = 0x06U,				/*!< The transmission failed at the KEX connection phase */
-	dktp_error_decapsulation_failure = 0x07U,		/*!< The asymmetric cipher failed to decapsulate the shared secret */
-	dktp_error_decryption_failure = 0x08U,			/*!< The decryption authentication has failed */
-	dktp_error_establish_failure = 0x09U,			/*!< The transmission failed at the KEX establish phase */
-	dktp_error_exchange_failure = 0x0AU,			/*!< The transmission failed at the KEX exchange phase */
-	dktp_error_hash_invalid = 0x0BU,				/*!< The public-key hash is invalid */
-	dktp_error_hosts_exceeded = 0x0CU,				/*!< The server has run out of socket connections */
-	dktp_error_invalid_input = 0x0DU,				/*!< The expected input was invalid */
-	dktp_error_invalid_request = 0x0EU,				/*!< The packet flag was unexpected */
-	dktp_error_keepalive_expired = 0x0FU,			/*!< The keep alive has expired with no response */
-	dktp_error_keepalive_timeout = 0x10U,			/*!< The decryption authentication has failed */
-	dktp_error_key_expired = 0x11U,					/*!< The DKTP public key has expired  */
-	dktp_error_key_unrecognized = 0x12U,			/*!< The key identity is unrecognized */
-	dktp_error_keychain_fail = 0x13U,				/*!< The ratchet operation has failed */
-	dktp_error_listener_fail = 0x14U,				/*!< The listener function failed to initialize */
-	dktp_error_memory_allocation = 0x15U,			/*!< The server has run out of memory */
-	dktp_error_message_time_invalid = 0x16U,		/*!< The packet has valid time expired */
-	dktp_error_packet_unsequenced = 0x17U,			/*!< The packet was received out of sequence */
-	dktp_error_random_failure = 0x18U,				/*!< The random generator has failed */
-	dktp_error_receive_failure = 0x19U,				/*!< The receiver failed at the network layer */
-	dktp_error_transmit_failure = 0x1AU,			/*!< The transmitter failed at the network layer */
-	dktp_error_unknown_protocol = 0x1BU,			/*!< The protocol string was not recognized */
-	dktp_error_verify_failure = 0x1CU,				/*!< The expected data could not be verified */
-	dktp_error_peer_key_mismatch = 0x1DU,			/*!< The remote peer key identity does not match the local key */
-	dktp_error_disconnect_request = 0x1EU,			/*!< The remote host has disconnected */
-	dktp_error_general_failure = 0x1FU				/*!< A general failure occurred */
+	dktp_error_channel_down = 0x03U,				/*!< The communications channel has failed */
+	dktp_error_connection_failure = 0x04U,			/*!< The device could not make a connection to the remote host */
+	dktp_error_connect_failure = 0x05U,				/*!< The transmission failed at the KEX connection phase */
+	dktp_error_decapsulation_failure = 0x06U,		/*!< The asymmetric cipher failed to decapsulate the shared secret */
+	dktp_error_decryption_failure = 0x07U,			/*!< The decryption authentication has failed */
+	dktp_error_establish_failure = 0x08U,			/*!< The transmission failed at the KEX establish phase */
+	dktp_error_exchange_failure = 0x09U,			/*!< The transmission failed at the KEX exchange phase */
+	dktp_error_hash_invalid = 0x0AU,				/*!< The public-key hash is invalid */
+	dktp_error_hosts_exceeded = 0x0BU,				/*!< The server has run out of socket connections */
+	dktp_error_invalid_input = 0x0CU,				/*!< The expected input was invalid */
+	dktp_error_invalid_request = 0x0DU,				/*!< The packet flag was unexpected */
+	dktp_error_key_expired = 0x0EU,					/*!< The DKTP public key has expired  */
+	dktp_error_key_unrecognized = 0x0FU,			/*!< The key identity is unrecognized */
+	dktp_error_keychain_fail = 0x10U,				/*!< The ratchet operation has failed */
+	dktp_error_listener_fail = 0x11U,				/*!< The listener function failed to initialize */
+	dktp_error_memory_allocation = 0x12U,			/*!< The server has run out of memory */
+	dktp_error_message_time_invalid = 0x13U,		/*!< The packet has valid time expired */
+	dktp_error_packet_unsequenced = 0x14U,			/*!< The packet was received out of sequence */
+	dktp_error_random_failure = 0x15U,				/*!< The random generator has failed */
+	dktp_error_receive_failure = 0x16U,				/*!< The receiver failed at the network layer */
+	dktp_error_transmit_failure = 0x17U,			/*!< The transmitter failed at the network layer */
+	dktp_error_unknown_protocol = 0x18U,			/*!< The protocol string was not recognized */
+	dktp_error_verify_failure = 0x19U,				/*!< The expected data could not be verified */
+	dktp_error_peer_key_mismatch = 0x1AU,			/*!< The remote peer key identity does not match the local key */
+	dktp_error_disconnect_request = 0x1BU,			/*!< The remote host has disconnected */
+	dktp_error_general_failure = 0x1CU				/*!< A general failure occurred */
 } dktp_errors;
 
 /*!
@@ -915,18 +905,6 @@ DKTP_EXPORT_API typedef struct dktp_local_peer_key
 	uint8_t sigkey[DKTP_ASYMMETRIC_SIGNING_KEY_SIZE];/*!< The asymmetric signature signing-key */
 	uint8_t verkey[DKTP_ASYMMETRIC_VERIFY_KEY_SIZE]; /*!< The asymmetric signature verification-key */
 } dktp_local_peer_key;
-
-/*!
-* \struct dktp_keepalive_state
-* \brief The DKTP keep alive state structure
-*/
-DKTP_EXPORT_API typedef struct dktp_keepalive_state
-{
-	qsc_socket target;								/*!< The target socket structure */
-	uint64_t etime;									/*!< The keep alive epoch time  */
-	uint64_t seqctr;								/*!< The keep alive packet sequence counter  */
-	bool recd;										/*!< The keep alive response received status  */
-} dktp_keepalive_state;
 
 /*!
 * \struct dktp_connection_state
