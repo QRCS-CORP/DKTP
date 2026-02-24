@@ -47,11 +47,11 @@ DKTP combines post-quantum asymmetric key exchange, directional pre-shared secre
 
 DKTP was designed to address the limitations of legacy secure transport protocols:
 
-- **Eliminate legacy dependencies** — no RSA, ECDH, X.509, or TLS-style certificate chains
-- **Full quantum resilience** — all asymmetric operations use NIST-standardized post-quantum primitives
-- **Lifecycle-wide protection** — multiple entropy layers and ratchet progression from key exchange through session update
-- **Zero-trust and sovereign operation** — no centralized trust model, no runtime key validation infrastructure required
-- **Deterministic, low-footprint implementation** — suitable for embedded and high-assurance systems
+- **Eliminate legacy dependencies** - no RSA, ECDH, X.509, or TLS-style certificate chains
+- **Full quantum resilience** - all asymmetric operations use NIST-standardized post-quantum primitives
+- **Lifecycle-wide protection** - multiple entropy layers and ratchet progression from key exchange through session update
+- **Zero-trust and sovereign operation** - no centralized trust model, no runtime key validation infrastructure required
+- **Deterministic, low-footprint implementation** - suitable for embedded and high-assurance systems
 
 ---
 
@@ -123,7 +123,7 @@ Each session uses ephemeral asymmetric key pairs and mixes static pre-shared sec
 
 The following steps bring up a local loopback connection between the Listener and Sender projects using Visual Studio.
 
-**Step 1 — Start the Listener**
+**Step 1 - Start the Listener**
 
 Set the DKTP Listener as the startup project and run it. On first launch it will generate a keypair and display the peering key path:
 ```
@@ -136,7 +136,7 @@ listener> Enter the path of the sender's peering key:
 
 Copy the displayed key path. The Listener is now waiting for the Sender's peering key.
 
-**Step 2 — Start the Sender**
+**Step 2 - Start the Sender**
 
 Right-click the DKTP Sender project in Solution Explorer and select **Debug → Start New Instance**. Follow the prompts:
 ```
@@ -159,14 +159,14 @@ sender> Load the remote-peer key on the server before connecting.
 
 Copy the Sender key path displayed in the console.
 
-**Step 3 — Exchange keys**
+**Step 3 - Exchange keys**
 
 Return to the Listener console and paste in the Sender key path at the prompt. The Listener will confirm both keys are loaded:
 ```
 listener> waiting for a connection...
 ```
 
-**Step 4 — Connect**
+**Step 4 - Connect**
 
 Return to the Sender console:
 ```
@@ -210,6 +210,8 @@ Default paths:
 - `$(SolutionDir)..\QSC\QSC`
 
 Ensure each application project's **References** property includes the DKTP library, and that the DKTP library references the QSC library.
+
+> **Critical:** The `Enable Enhanced Instruction Set` property must be set to the **same value** across the QSC library, the QSTP library, and every application project (Root, Server, Client) in both Debug and Release configurations. Mismatched intrinsics settings produce ABI-incompatible struct layouts and are a source of undefined behavior.
 
 ### Linux and macOS
 
