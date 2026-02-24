@@ -52,12 +52,6 @@ static void kex_send_network_error(const qsc_socket* sock, dktp_errors error)
 	}
 }
 
-static void kex_extract_seqtime(uint8_t* output, const dktp_network_packet* packet)
-{
-	qsc_intutils_le64to8(output, packet->sequence);
-	qsc_intutils_le64to8(output + DKTP_SEQUENCE_SIZE, packet->utctime);
-}
-
 /*
 Legend:
 ← ↔ →		-Assignment and direction symbols
@@ -90,13 +84,14 @@ tckl, tckr	-The tunnel channel keys for the transmit/receive symmetric cipher in
 
 /*
 Connect Request:
-The client stores a hash of the configuration string, and both of the public asymmetric signature verification-keys,
-which is used as a session cookie during the exchange.
-sch = H(cfg || pvka || pvkb)
-The client hashes the key identity string, the configuration string, and the serialized packet header, and signs the hash.
-sm = Ssk(H(kid || cfg || sph))
+The client hashes the key id, configuration string and serialized packet header.
+hm = H(sph || kid || cfg)
+The client signs the hm hash.
+shm = Ssk(hm)
+The client starts the transcript by hashing the signature hash.
+sch = H(hm)
 The client sends the kid, the config, and the signed hash to the server.
-C{ kid || cfg || sm }->S
+C{ kid || cfg || shm }->S
 */
 static dktp_errors kex_client_connect_request(dktp_kex_client_state* kcs, dktp_connection_state* cns, dktp_network_packet* packetout)
 {
@@ -113,8 +108,8 @@ static dktp_errors kex_client_connect_request(dktp_kex_client_state* kcs, dktp_c
 		
 		if (tm <= kcs->expiration)
 		{
-			uint8_t phash[DKTP_HASH_SIZE] = { 0U };
-			uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+			uint8_t hm[DKTP_HASH_SIZE] = { 0U };
+			uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 			size_t mlen;
 
 			/* copy the key-id and configuration string to the message */
@@ -124,24 +119,19 @@ static dktp_errors kex_client_connect_request(dktp_kex_client_state* kcs, dktp_c
 			dktp_header_create(packetout, dktp_flag_connect_request, cns->txseq, KEX_CONNECT_REQUEST_MESSAGE_SIZE);
 
 			/* serialize header, then hash/sign the header and message */
-			dktp_packet_header_serialize(packetout, shdr);
+			dktp_packet_header_serialize(packetout, sph);
 			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetout->pmessage, DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE);
-			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, phash);
+			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
 
 			/* sign the hash and add it to the message */
 			mlen = 0U;
-			dktp_signature_sign(packetout->pmessage + DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE, &mlen, phash, DKTP_HASH_SIZE, kcs->sigkey, qsc_acp_generate);
+			dktp_signature_sign(packetout->pmessage + DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE, &mlen, hm, DKTP_HASH_SIZE, kcs->sigkey, qsc_acp_generate);
 
-			/* store a hash of the configuration string, and the public signature keys: pkh = H(cfg || pvka || pvkb) */
+			/* 1) transcript hash stores the hash of the keyid and configuration string hash: sch = H(hm) */
 			qsc_memutils_clear(kcs->schash, DKTP_HASH_SIZE);
-			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, (const uint8_t*)DKTP_CONFIG_STRING, DKTP_CONFIG_SIZE);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->keyid, DKTP_KEYID_SIZE);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
+			qsc_sha3_compute512(kcs->schash, hm, DKTP_HASH_SIZE);
 
 			cns->exflag = dktp_flag_connect_request;
 			qerr = dktp_error_none;
@@ -168,19 +158,24 @@ The client verifies the signature of the hash, then generates its own hash of th
 and compares it with the one contained in the message. 
 If the hash matches, the client uses the encapsulation key to encapsulate a shared secret. 
 If the hash does not match, the key exchange is aborted.
-cond = Vvk(H(ek || sh)) = (true ?= ek : 0)
+cond = Vvk(smh) = (true ?= ek : 0)
+hmc = H(sph || ek)
+cond = (hmc == hm) = (true ?= 1 : 0)
+The client adds the signature hash to the transcript hash.
+sch = H(sch || hm)
+The client encapsulates a shared secret.
 cpta = Eek(secl)
-The client stores the shared secret (secl), which along with a second shared secret and the session cookie, 
-which will be used to generate the session keys.
-The client generates an asymmetric encryption key-pair, stores the decapsulation key, 
-hashes the encapsulation key, ciphertext, and serialized packet header, 
-and then signs the hash using its asymmetric signature key.
+The client stores the shared secret (secl), which along with a second shared secret which will be used to generate the session keys.
+The client generates an asymmetric encryption key-pair, stores the decapsulation key, hashes the encapsulation key, ciphertext, 
+and serialized packet header, and then signs the hash using its asymmetric signature key.
 ek, dk = G(r)
-hkc = H(ek || cpta || sh)
-shkc = Ssk(hkc)
+hm = H(sph || cpta || ek)
+shm = Ssk(hm)
+The client adds the message hash to the transcript hash.
+sch = H(sch || hm)
 The client sends a response message containing the signed hash of its encapsulation-key and 
 cipher-text and serialized header, and a copy of the cipher-text and encapsulation key.
-C{ cpta || ek || shkc }-> S
+C{ cpta || ek || shm }-> S
 */
 static dktp_errors kex_client_exchange_request(dktp_kex_client_state* kcs, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
@@ -203,19 +198,25 @@ static dktp_errors kex_client_exchange_request(dktp_kex_client_state* kcs, dktp_
 		{
 			qsc_keccak_state kstate = { 0 };
 			uint8_t hmc[DKTP_HASH_SIZE] = { 0U };
-			uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+			uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 			const uint8_t* pubk = packetin->pmessage + mlen;
 
 			/* hash the public encapsulation key and header */
-			dktp_packet_header_serialize(packetin, shdr);
+			dktp_packet_header_serialize(packetin, sph);
 			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, pubk, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 			/* verify the public key hash */
 			if (qsc_intutils_verify(hmc, hm, DKTP_HASH_SIZE) == 0)
 			{
+				/* 2) update the transcript hash with the signature hash of the inbound pk_kem: sch = H(sch || hm) */
+				qsc_sha3_initialize(&kstate);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
+
 				/* generate, and encapsulate the secret */
 
 				/* store the cipher-text in the message */
@@ -231,12 +232,18 @@ static dktp_errors kex_client_exchange_request(dktp_kex_client_state* kcs, dktp_
 				dktp_header_create(packetout, dktp_flag_exchange_request, cns->txseq, KEX_EXCHANGE_REQUEST_MESSAGE_SIZE);
 
 				/* hash the public encapsulation key and packet header */
-				dktp_packet_header_serialize(packetout, shdr);
+				dktp_packet_header_serialize(packetout, sph);
 				qsc_sha3_initialize(&kstate);
-				qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 				/* hash the public encapsulation key and cipher-text */
 				qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetout->pmessage, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE + DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
+
+				/* 3) update the transcript hash with the signature hash of the outbound pkkem + ciphertext: sch = H(sch || hm} */
+				qsc_sha3_initialize(&kstate);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
 
 				/* sign the hash and add it to the message */
 				mlen = 0;
@@ -272,7 +279,12 @@ The client verifies the signature of the hash, then generates its own hash of th
 and compares it with the one contained in the message. 
 If the hash matches, the client decapsulates the shared secret (secb). If the hash comparison fails,
 the key exchange is aborted.
-cond = Vvk(H(cptb)) = (true ?= cptb : 0)
+cond = Vvk(hm) = (true ?= cptb : 0)
+hmc = H(sph || cptb)
+cond = (hmc == hm) = (true ?= 1 : 0)
+The client adds the message hash to the transcript hash.
+sch = H(sch || hm)
+The client decrypts the asymmetric shared secret.
 secb = -Edk(cptb)
 The client combines the asymmetric shared secrets with the pre-shared secrets to create the transmit and receive session keys, 
 and nonces, independently keying each channel of the communications stream.
@@ -281,13 +293,13 @@ kr, nr = KDF(secr, pssl)
 The receive and transmit channel ciphers are initialized.
 cprrx(kr, nr)
 cprtx(kl, nl)
-The client encrypts the session cookie and the timestamp/sequence with the tx cipher, adding the serialized packet header 
+The client encrypts the transcript hash with the tx cipher, adding the serialized packet header 
 to the additional data of the cipher MAC.
-scht = H(sch || ts)
-cm = Ek(scht, sh)
-In the event of an error, the client sends an error message to the server, 
-aborting the exchange and terminating the connection on both hosts.
-C{ cm }-> S
+cpt = Ek(sch)
+The client adds the ciphertext to the transcript hash.
+sch = H(sch || cpt)
+In the event of an error, the client sends an error message to the server, aborting the exchange and terminating the connection on both hosts.
+C{ cpt }-> S
 */
 static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
@@ -311,26 +323,31 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 			qsc_keccak_state kstate = { 0 };
 			uint8_t hmc[DKTP_HASH_SIZE] = { 0U };
 			uint8_t secr[DKTP_SECRET_SIZE] = { 0U };
-			uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+			uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 
 			/* hash the public encapsulation key and header */
-			dktp_packet_header_serialize(packetin, shdr);
+			dktp_packet_header_serialize(packetin, sph);
 			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetin->pmessage, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 			/* verify the cipher-text hash */
 			if (qsc_intutils_verify(hmc, hm, DKTP_HASH_SIZE) == 0)
 			{
+				/* 4) update the transcript hash with the signature hash of the inbound ciphertext: sch = H(sch || hm) */
+				qsc_sha3_initialize(&kstate);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
+
 				if (dktp_cipher_decapsulate(secr, packetin->pmessage, kcs->deckey) == true)
 				{
 					uint8_t prnd[(QSC_KECCAK_512_RATE * 2U)] = { 0U };		
 					uint8_t sch[DKTP_HASH_SIZE] = { 0 };
-					uint8_t st[DKTP_KEX_SEQTIME_SIZE] = { 0 };
 
 					/* initialize cSHAKE tckr = H(secl, pssr) */
-					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, kcs->secl, DKTP_SECRET_SIZE, NULL, 0, kcs->pssr, DKTP_SECRET_SIZE);
+					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, kcs->secl, DKTP_SECRET_SIZE, DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssr, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
 
 					/* initialize the symmetric cipher, and raise client channel-1 tx */
@@ -346,7 +363,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					qsc_cshake512_compute(kcs->pssl, DKTP_SECRET_SIZE, kcs->pssl, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
 
 					/* initialize cSHAKE tckl = H(secr, pssl) */
-					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, NULL, 0, kcs->pssl, DKTP_SECRET_SIZE);
+					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssl, DKTP_SECRET_SIZE);
 					qsc_memutils_clear(secr, sizeof(secr));
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
 
@@ -366,18 +383,17 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					/* assemble the establish-request packet */
 					dktp_header_create(packetout, dktp_flag_establish_request, cns->txseq, KEX_ESTABLISH_REQUEST_MESSAGE_SIZE);
 
-					/* protocol change: encrypt and add schash to establish request */
-					dktp_packet_header_serialize(packetout, shdr);
-					qsc_rcs_set_associated(&cns->txcpr, shdr, DKTP_HEADER_SIZE);
+					/* encrypt and add schash to establish request */
+					dktp_packet_header_serialize(packetout, sph);
+					qsc_rcs_set_associated(&cns->txcpr, sph, DKTP_HEADER_SIZE);
 
-					kex_extract_seqtime(st, packetout);
+					qsc_rcs_transform(&cns->txcpr, packetout->pmessage, kcs->schash, DKTP_HASH_SIZE);
+
+					/* 5) hash the outbound ciphertext into the transcript hash sch = H(sch || cpt) */
 					qsc_sha3_initialize(&kstate);
-					qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-					qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 					qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
-					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
-
-					qsc_rcs_transform(&cns->txcpr, packetout->pmessage, sch, DKTP_HASH_SIZE);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetout->pmessage, packetout->msglen);
+					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
 
 					qerr = dktp_error_none;
 					cns->exflag = dktp_flag_establish_request;
@@ -413,10 +429,11 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 Establish Verify:
 The client verifies the packet flag, sequence number, valid-time timestamp, and message size of the establish response packet.
 The client uses the rx cipher instance, adding the serialized establish response packet header to the AD and decrypting the ciphertext.
-The session cookie is hashed along with the timestamp/sequence, and the hash is compared to the decrypted message for equivalence.
+hm = -Ek(cpt)
+cond = (hm == sch) = (true ?= 1 : 0)
+The session transcript is compared to the decrypted message for equivalence.
 If the hashes matches, both sides have confirmed that the encrypted tunnel has been established.
-Otherwise the tunnel is in an error state indicated by the message, 
-and the tunnel is torn down on both sides. 
+Otherwise the tunnel is in an error state indicated by the message, and the tunnel is torn down on both sides. 
 The client sets the operational state to session established, and is now ready to process data.
 */
 static dktp_errors kex_client_establish_verify(dktp_kex_client_state* kcs, dktp_connection_state* cns, const dktp_network_packet* packetin)
@@ -428,30 +445,20 @@ static dktp_errors kex_client_establish_verify(dktp_kex_client_state* kcs, dktp_
 
 	if (kcs != NULL && packetin != NULL)
 	{
-		uint8_t hm[DKTP_HASH_SIZE];
-		uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+		uint8_t hm[DKTP_HASH_SIZE] = { 0U };
+		uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 
 		/* decrypt and verify the server schash */
-		dktp_packet_header_serialize(packetin, shdr);
-		qsc_rcs_set_associated(&cns->rxcpr, shdr, DKTP_HEADER_SIZE);
+		dktp_packet_header_serialize(packetin, sph);
+		qsc_rcs_set_associated(&cns->rxcpr, sph, DKTP_HEADER_SIZE);
 
 		if (qsc_rcs_transform(&cns->rxcpr, hm, packetin->pmessage, DKTP_HASH_SIZE) == true)
 		{
-			/* sch = H(schash || st) */
 			qsc_keccak_state kstate = { 0 };
-			uint8_t sch[DKTP_HASH_SIZE] = { 0 };
 			uint8_t st[DKTP_KEX_SEQTIME_SIZE] = { 0 };
 
-			/* sch = H(schash || st) */
-			kex_extract_seqtime(st, packetin);
-			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kcs->schash, DKTP_HASH_SIZE);
-			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
-
 			/* verify the server schash */
-			if (qsc_intutils_verify(hm, sch, DKTP_HASH_SIZE) == 0)
+			if (qsc_intutils_verify(hm, kcs->schash, DKTP_HASH_SIZE) == 0)
 			{
 				cns->exflag = dktp_flag_session_established;
 				qerr = dktp_error_none;
@@ -477,30 +484,28 @@ static dktp_errors kex_client_establish_verify(dktp_kex_client_state* kcs, dktp_
 /*
 The server verifies the packet flag, sequence number, valid-time timestamp, and message size of the connect request packet.
 The server responds with either an error message, or a connect response packet.
-Any error during the key exchange will generate an error-packet sent to the remote host, 
-which will trigger a tear down of the exchange, and the network connection on both sides.
+Any error during the key exchange will generate an error-packet sent to the remote host, which will trigger a tear down of the exchange, 
+and the network connection on both sides.
 The server first checks the packet header including the valid-time timestamp.
-The server then verifies that it has the requested asymmetric signature verification key,
-corresponding to the kid sent by the client. The server verifies that it has a compatible protocol configuration. 
+The server then verifies that it has the requested asymmetric signature verification key,corresponding to the kid sent by the client. 
+The server verifies that it has a compatible protocol configuration. 
 The server loads the client's signature verification key, and checks the signature of the message:
 hm = Vvk(smh)
-If the signature is verified, the server hashes the message kid, config string, and serialized packet header
-and compares the signed hash:
-hm ?= H(kid || cfg || sph)
-The server stores a hash of the configuration string, key identity, and both public signature verification-keys, 
-to create the public key hash, which is used as a session cookie.
-sch = H(cfg || kid || pvka || pvkb)
-The server then generates an asymmetric encryption key-pair, stores the private key, 
-hashes the public encapsulation key, and then signs the hash of the public encapsulation key and the serialized 
-packet header using the asymmetric signature key.
-The public signature verification key can itself be signed by a ‘chain of trust' model, 
-like X.509, using a signature verification extension to this protocol.
+If the signature is verified, the server hashes the key id, config string and serialized packet header and compares the signed hash:
+hm ?= H(sph || kid || cfg)
+The server stores a hash of the key identity and onfiguration string in the transcript hash.
+sch = H(hm)
+The server then generates an asymmetric encryption key-pair, stores the private key.
 ek,sk = G(r)
-hek = H(ek || sph)
-shek = Ssk(pkh)
+The server hashes the public encapsulation key and serialized outbound packet header.
+hm = H(sph || ek)
+The server signs the hash of the public encapsulation key.
+shm = Ssk(hm)
+The server adds signature hash to the message transcript.
+sch = H(sch || hm)
 The server sends a connect response message containing a signed hash of the public asymmetric encapsulation-key, 
 and a copy of that key.
-S{ shek || ek }-> C 
+S{ shm || ek }-> C 
 */
 static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
@@ -542,27 +547,21 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 				{
 					qsc_keccak_state kstate = { 0 };
 					uint8_t hmc[DKTP_HASH_SIZE] = { 0U };
-					uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+					uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 
 					/* serialize header, then hash/sign the header and message */
-					dktp_packet_header_serialize(packetin, shdr);
+					dktp_packet_header_serialize(packetin, sph);
 					qsc_sha3_initialize(&kstate);
-					qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 					qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetin->pmessage, DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE);
 					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 					/* verify the message hash */
 					if (qsc_intutils_verify(hm, hmc, DKTP_HASH_SIZE) == 0)
 					{
-						/* store a hash of the session token, the configuration string,
-							and the public signature key: sch = H(stok || cfg || pvk) */
+						/* 1) start the transcript hash with the keyid and configuration string hash; pkh = H(hm) */
 						qsc_memutils_clear(kss->schash, DKTP_HASH_SIZE);
-						qsc_sha3_initialize(&kstate);
-						qsc_sha3_update(&kstate, qsc_keccak_rate_512, (const uint8_t*)DKTP_CONFIG_STRING, DKTP_CONFIG_SIZE);
-						qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->keyid, DKTP_KEYID_SIZE);
-						qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-						qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-						qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kss->schash);
+						qsc_sha3_compute512(kss->schash, hm, DKTP_HASH_SIZE);
 
 						/* initialize the packet and asymmetric encryption keys */
 						qsc_memutils_clear(kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
@@ -575,11 +574,17 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 						dktp_header_create(packetout, dktp_flag_connect_response, cns->txseq, KEX_CONNECT_RESPONSE_MESSAGE_SIZE);
 
 						/* hash the public encapsulation key and header */
-						dktp_packet_header_serialize(packetout, shdr);
+						dktp_packet_header_serialize(packetout, sph);
 						qsc_sha3_initialize(&kstate);
-						qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+						qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 						qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 						qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
+
+						/* 2) update the transcript hash with the hash of the outbound pkkem: sch = H(sch || hm) */
+						qsc_sha3_initialize(&kstate);
+						qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
+						qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+						qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kss->schash);
 
 						/* sign the hash and add it to the message */
 						mlen = 0U;
@@ -629,13 +634,22 @@ Exchange Response:
 The server verifies the packet flag, sequence number, valid-time timestamp, and message size of the exchange request packet.
 The server verifies the signature of the hash, then generates its own hash of the encapsulation key, ciphertext, and serialized header, 
 and compares it with the one contained in the message.
-If the hash matches, the server uses the decapsulation key to decapsulate the shared secret.
-If the hash comparison fails, the key exchange is aborted.
-cond = Vvk(H(ek || cpta)) = (true ?= cph : 0)
+If the hash matches, the client uses the encapsulation key to encapsulate a shared secret.
+If the hash does not match, the key exchange is aborted.
+cond = Vvk(smh) = (true ?= ek : 0)
+hmc = H(sph || cpta || ek)
+cond = (hmc == hm) = (true ?= 1 : 0)
+The server adds the signature hash to the transcript hash.
+sch = H(sch || hm)
 The server decapsulates the second shared-secret, and stores the secret (secr).
 secr = -Edk(cpta)
-The server generates a cipher-text and the second shared secret (secl) using the clients public encapsulation key.
+The server generates a ciphertext and the second shared secret (secl) using the clients public encapsulation key.
 cptb = Eek(secl)
+The server hashes the ciphertext and serialized packet header and signs the hash.
+hm = H(sph || cptb)
+shm = Ssk(hm)
+The server adds the signature hash to the message transcript.
+sch = H(sch || hm)
 The server combines the asymmetric shared secrets with the pre-shared secrets to create the transmit and receive session keys,
 and nonces, independently keying each channel of the communications stream.
 kl, nl = KDF(secl, pssr)
@@ -643,11 +657,8 @@ kr, nr = KDF(secr, pssl)
 The receive and transmit channel ciphers are initialized.
 cprrx(kr, nr)
 cprtx(kl, nl)
-The server hashes the cipher-text and serialized packet header, and signs the hash.
-hcpt = H(cptb || sh)
-scph = Ssk(cpth)
 The server sends the signed hash of the cipher-text, and the cipher-text to the client.
-S{ shcp || cptb }-> C
+S{ shm || cptb }-> C
 */
 static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
@@ -670,21 +681,27 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 		if (dktp_signature_verify(khash, &slen, packetin->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE + DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE, mlen, kss->rverkey) == true)
 		{
 			qsc_keccak_state kstate = { 0 };
-			uint8_t phash[DKTP_HASH_SIZE] = { 0U };
-			uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+			uint8_t hm[DKTP_HASH_SIZE] = { 0U };
+			uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 
 			/* hash the public encapsulation key and header */
-			dktp_packet_header_serialize(packetin, shdr);
+			dktp_packet_header_serialize(packetin, sph);
 			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+			qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 			qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetin->pmessage, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE + DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, phash);
+			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
 
 			/* verify the public key hash */
-			if (qsc_intutils_verify(phash, khash, DKTP_HASH_SIZE) == 0)
+			if (qsc_intutils_verify(hm, khash, DKTP_HASH_SIZE) == 0)
 			{
 				uint8_t secl[DKTP_SECRET_SIZE] = { 0U };
 				uint8_t secr[DKTP_SECRET_SIZE] = { 0U };
+
+				/* 3) update the transcript hash with the signature hash of the inbound pkkem + ciphertext: sch = H(sch || hm) */
+				qsc_sha3_initialize(&kstate);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kss->schash);
 
 				if (dktp_cipher_decapsulate(secr, packetin->pmessage, kss->deckey) == true)
 				{
@@ -696,19 +713,25 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* assemble the exstart-request packet */
 					dktp_header_create(packetout, dktp_flag_exchange_response, cns->txseq, KEX_EXCHANGE_RESPONSE_MESSAGE_SIZE);
 					
-					/* hash the public encapsulation key and header */
-					dktp_packet_header_serialize(packetout, shdr);
+					/* hash the ciphertext and header */
+					dktp_packet_header_serialize(packetout, sph);
 					qsc_sha3_initialize(&kstate);
-					qsc_sha3_update(&kstate, qsc_keccak_rate_512, shdr, DKTP_HEADER_SIZE);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, sph, DKTP_HEADER_SIZE);
 					qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetout->pmessage, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
-					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, phash);
+					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
+
+					/* 4) update the transcript hash with the signature hash of the outbound ciphertext */
+					qsc_sha3_initialize(&kstate);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
+					qsc_sha3_update(&kstate, qsc_keccak_rate_512, hm, DKTP_HASH_SIZE);
+					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kss->schash);
 
 					/* sign the hash and add it to the message */
 					mlen = 0U;
-					dktp_signature_sign(packetout->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE, &mlen, phash, DKTP_HASH_SIZE, kss->sigkey, qsc_acp_generate);
-
+					dktp_signature_sign(packetout->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE, &mlen, hm, DKTP_HASH_SIZE, kss->sigkey, qsc_acp_generate);
+					
 					/* initialize cSHAKE tckl = H(secl, pssr) */
-					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, NULL, 0, kss->pssl, DKTP_SECRET_SIZE);
+					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssl, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
 					qsc_memutils_clear(secr, sizeof(secr));
 
@@ -725,7 +748,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					qsc_cshake512_compute(kss->pssr, DKTP_SECRET_SIZE, kss->pssr, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
 
 					/* initialize cSHAKE tckr = H(secr, pssl) */
-					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secl, DKTP_SECRET_SIZE, NULL, 0, kss->pssr, DKTP_SECRET_SIZE);
+					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secl, DKTP_SECRET_SIZE, DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssr, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
 					qsc_memutils_clear(secl, sizeof(secl));
 
@@ -780,12 +803,12 @@ with the establish response flag set.
 Otherwise the tunnel is in an error state indicated in the message, and the tunnel is torn down on both sides. 
 The server sets the operational state to session established, and is now ready to process data.
 The server uses the rx cipher to decrypt the message, adding the serialized packet header to the additional data of the cipher MAC. 
-The decrypted session cookie is compared to a hash of the local session cookie and timestamp/sequence for equivalence. 
-If the cookie is verified, the server hashes the session cookie, and encrypts it with the tx cipher,
+The decrypted session transcript is compared to a hash of the local session transcript for equivalence. 
+If the transcript is verified, the server hashes the session transcript and the ciphertext and encrypts it with the tx cipher,
 adding the serialized establish response packet header to the AD of the tx cipher.
-hsch = H(sch || ts)
-cm = Ek(hsch, sh)
-S{ cm }-> C
+sch = H(sch || cpt)
+cpt = Ek(sch)
+S{ cpt }-> C
 */
 static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
@@ -799,44 +822,32 @@ static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dkt
 
 	if (cns != NULL && packetin != NULL && packetout != NULL)
 	{
-		uint8_t hm[DKTP_HASH_SIZE];
-		uint8_t shdr[DKTP_HEADER_SIZE] = { 0U };
+		uint8_t hm[DKTP_HASH_SIZE] = { 0U };
+		uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
 
 		/* decrypt and verify the schash */
-		dktp_packet_header_serialize(packetin, shdr);
-		qsc_rcs_set_associated(&cns->rxcpr, shdr, DKTP_HEADER_SIZE);
+		dktp_packet_header_serialize(packetin, sph);
+		qsc_rcs_set_associated(&cns->rxcpr, sph, DKTP_HEADER_SIZE);
 
 		if (qsc_rcs_transform(&cns->rxcpr, hm, packetin->pmessage, DKTP_HASH_SIZE) == true)
 		{
 			qsc_keccak_state kstate = { 0 };
-			uint8_t sch[DKTP_HASH_SIZE] = { 0 };
-			uint8_t st[DKTP_KEX_SEQTIME_SIZE] = { 0 };
-
-			kex_extract_seqtime(st, packetin);
-			qsc_sha3_initialize(&kstate);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
-			qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
-			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
 
 			/* verify the schash */
-			if (qsc_intutils_verify(hm, sch, DKTP_HASH_SIZE) == 0)
+			if (qsc_intutils_verify(hm, kss->schash, DKTP_HASH_SIZE) == 0)
 			{
 				/* assemble the establish-response packet */
 				dktp_header_create(packetout, dktp_flag_establish_response, cns->txseq, KEX_ESTABLISH_RESPONSE_MESSAGE_SIZE);
 
-				/* hash the schash and send it in the establish response message */
-				kex_extract_seqtime(st, packetout);
+				/* 5) add the ciphertext to the transcript hash: sch = H(sch || cpt) */
 				qsc_sha3_initialize(&kstate);
-				qsc_sha3_update(&kstate, qsc_keccak_rate_512, st, sizeof(st));
-				qsc_sha3_update(&kstate, qsc_keccak_rate_512, (uint8_t*)DKTP_DOMAIN_IDENTITY_STRING, DKTP_DOMAIN_IDENTITY_SIZE);
 				qsc_sha3_update(&kstate, qsc_keccak_rate_512, kss->schash, DKTP_HASH_SIZE);
-				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, sch);
+				qsc_sha3_update(&kstate, qsc_keccak_rate_512, packetin->pmessage, packetin->msglen);
+				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kss->schash);
 
-				dktp_packet_header_serialize(packetout, shdr);
-				qsc_rcs_set_associated(&cns->txcpr, shdr, DKTP_HEADER_SIZE);
-				qsc_rcs_transform(&cns->txcpr, packetout->pmessage, sch, DKTP_HASH_SIZE);
-
+				dktp_packet_header_serialize(packetout, sph);
+				qsc_rcs_set_associated(&cns->txcpr, sph, DKTP_HEADER_SIZE);
+				qsc_rcs_transform(&cns->txcpr, packetout->pmessage, kss->schash, DKTP_HASH_SIZE);
 				qerr = dktp_error_none;
 				cns->exflag = dktp_flag_session_established;
 			}

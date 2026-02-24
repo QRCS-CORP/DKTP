@@ -53,6 +53,7 @@
 #define DKTP_H
 
 #include "rcs.h"
+#include "async.h"
 #include "sha3.h"
 
 /**
@@ -347,9 +348,9 @@ static const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof
 
 /*!
 * \def DKTP_MESSAGE_MAX
-* \brief The maximum message size used during the key exchange (1 GB)
+* \brief The maximum message size used during the key exchange (65,536  bytes)
 */
-#define DKTP_MESSAGE_MAX 0x3D090000UL
+#define DKTP_MESSAGE_MAX 0x10000UL
 
 #if defined(DKTP_CONFIG_DILITHIUM_KYBER)
 
@@ -384,7 +385,7 @@ static const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof
 	 */
 #	define dktp_signature_verify qsc_dilithium_verify
 
-/** \cond */
+/** \cond DOXYGEN_NO_DOCUMENT */
 #	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_KYBER_S1K2P512)
 static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_kyber-s1_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_KYBER_S3K3P768)
@@ -396,7 +397,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_
 #	else
 #		error Invalid parameter set!
 #	endif
-/** \endcond */
+/** \endcond DOXYGEN_NO_DOCUMENT */
 
 /*!
 * \def DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE
@@ -466,7 +467,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_
 	 */
 #	define dktp_signature_verify qsc_dilithium_verify
 
-/** \cond */
+/** \cond DOXYGEN_NO_DOCUMENT */
 #	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_MCELIECE_S1N3488T64)
 static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_MCELIECE_S3N4608T96)
@@ -480,7 +481,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-
 #	else
 #		error Invalid parameter set!
 #	endif
-/** \endcond */
+/** \endcond DOXYGEN_NO_DOCUMENT */
 
 /*!
 * \def DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE
@@ -551,7 +552,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-
 	 */
 #	define dktp_signature_verify qsc_sphincsplus_verify
 
-/** \cond */
+/** \cond DOXYGEN_NO_DOCUMENT */
 #	if defined(QSC_SPHINCSPLUS_S1S128SHAKERF) && defined(QSC_MCELIECE_S1N3488T64)
 static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1f_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S1S128SHAKERS) && defined(QSC_MCELIECE_S1N3488T64)
@@ -575,7 +576,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s
 #	else
 #		error Invalid parameter set!
 #	endif
-/** \endcond */
+/** \endcond DOXYGEN_NO_DOCUMENT */
 
 /*!
 * \def DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE
@@ -645,7 +646,7 @@ static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s
 */
 #define DKTP_ERROR_STRING_WIDTH 128U
 
-/** \cond */
+/** \cond DOXYGEN_NO_DOCUMENT */
 static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_WIDTH] =
 {
 	"No error was detected",
@@ -681,20 +682,21 @@ static const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_
 	"The remote host has disconnected",
 	"A general failure occurred"
 };
-/** \endcond */
+/** \endcond DOXYGEN_NO_DOCUMENT */
 
 /*!
 * \def DKTP_MESSAGE_STRING_DEPTH
 * \brief The depth of the DKTP message string array
 */
 #define DKTP_MESSAGE_STRING_DEPTH 23U
+
 /*!
 * \def DKTP_MESSAGE_STRING_WIDTH
 * \brief The width of each DKTP message string
 */
 #define DKTP_MESSAGE_STRING_WIDTH 128U
 
-/** \cond */
+/** \cond DOXYGEN_NO_DOCUMENT */
 static const char DKTP_MESSAGE_STRINGS[DKTP_MESSAGE_STRING_DEPTH][DKTP_MESSAGE_STRING_WIDTH] =
 {
 	"The operation completed succesfully. ",
@@ -721,7 +723,19 @@ static const char DKTP_MESSAGE_STRINGS[DKTP_MESSAGE_STRING_DEPTH][DKTP_MESSAGE_S
 	"The host encountered an error: ",
 	"The host received an asymmetric ratchet request"
 };
-/** \endcond */
+/** \endcond DOXYGEN_NO_DOCUMENT */
+
+
+/*!
+* \def DKTP_CHANNEL_IDENTITY_LENGTH
+* \brief The depth of the DKTP message string array
+*/
+#define DKTP_CHANNEL_IDENTITY_LENGTH 14U
+
+/** \cond DOXYGEN_NO_DOCUMENT */
+static const char DKTP_RX_CHANNEL_IDENTITY[DKTP_CHANNEL_IDENTITY_LENGTH] = "DKTP:RXKEY:V1";
+static const char DKTP_TX_CHANNEL_IDENTITY[DKTP_CHANNEL_IDENTITY_LENGTH] = "DKTP:TXKEY:V1";
+/** \endcond DOXYGEN_NO_DOCUMENT */
 
 /*!
 * \enum dktp_configuration
@@ -767,7 +781,7 @@ DKTP_EXPORT_API typedef enum dktp_messages
 	dktp_messages_invalid_request = 0x13U,			/*!< The function received an invalid request */
 	dktp_messages_peer_key_mismatch = 0x14U,		/*!< The remote peer identity does not match the local key */
 	dktp_messages_system_message = 0x15U,			/*!< The host encountered an error */
-	dktp_messages_asymmetric_ratchet = 0x14U,		/*!< The host received an asymmetric ratchet request */
+	dktp_messages_asymmetric_ratchet = 0x16U,		/*!< The host received an asymmetric ratchet request */
 } dktp_messages;
 
 /*!
@@ -798,7 +812,7 @@ DKTP_EXPORT_API typedef enum dktp_errors
 	dktp_error_keychain_fail = 0x13U,				/*!< The ratchet operation has failed */
 	dktp_error_listener_fail = 0x14U,				/*!< The listener function failed to initialize */
 	dktp_error_memory_allocation = 0x15U,			/*!< The server has run out of memory */
-	dktp_error_message_time_invalid = 0x06U,		/*!< The packet has valid time expired */
+	dktp_error_message_time_invalid = 0x16U,		/*!< The packet has valid time expired */
 	dktp_error_packet_unsequenced = 0x17U,			/*!< The packet was received out of sequence */
 	dktp_error_random_failure = 0x18U,				/*!< The random generator has failed */
 	dktp_error_receive_failure = 0x19U,				/*!< The receiver failed at the network layer */
@@ -930,6 +944,7 @@ DKTP_EXPORT_API typedef struct dktp_connection_state
 	uint8_t pssr[DKTP_SECRET_SIZE];					/*!< The remote pre-shared secret */
 	uint8_t sigkey[DKTP_ASYMMETRIC_SIGNING_KEY_SIZE]; /*!< The local signing key */
 	uint8_t verkey[DKTP_ASYMMETRIC_VERIFY_KEY_SIZE];  /*!< The remote signature verification key */
+	qsc_mutex txlock;								/*!< The transmit channel lock */
 #endif
 	uint64_t rxseq;									/*!< The receive channels packet sequence number  */
 	uint64_t txseq;									/*!< The transmit channels packet sequence number  */

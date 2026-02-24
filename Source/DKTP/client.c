@@ -19,15 +19,8 @@ typedef struct client_receiver_state
 typedef struct listener_receiver_state
 {
 	dktp_connection_state* pcns;
-	dktp_keepalive_state* pkpa;
 	void (*callback)(dktp_connection_state*, const uint8_t*, size_t);
 } listener_receiver_state;
-
-typedef struct listener_keepalive_loop_args
-{
-	dktp_keepalive_state* pkpa;
-	volatile dktp_errors result;
-} listener_keepalive_loop_args;
 
 typedef struct listener_receive_loop_args
 {
@@ -59,6 +52,9 @@ static void client_state_initialize(dktp_kex_client_state* kcs, dktp_connection_
 	qsc_memutils_copy(kcs->pssl, lpk->pss, DKTP_SECRET_SIZE);
 	qsc_memutils_copy(kcs->pssr, rpk->pss, DKTP_SECRET_SIZE);
 	kcs->expiration = rpk->expiration;
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+	cns->txlock = qsc_async_mutex_create();
+#endif
 	cns->target.instance = qsc_acp_uint32();
 	qsc_rcs_dispose(&cns->rxcpr);
 	qsc_rcs_dispose(&cns->txcpr);
@@ -76,7 +72,6 @@ static void listener_state_initialize(dktp_kex_server_state* kss, listener_recei
 	qsc_memutils_copy(kss->verkey, lpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	qsc_memutils_copy(kss->rverkey, rpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	kss->expiration = lpk->expiration;
-	qsc_memutils_copy(&rcv->pkpa->target, &rcv->pcns->target, sizeof(qsc_socket));
 	qsc_memutils_clear((uint8_t*)&rcv->pcns->rxcpr, sizeof(qsc_rcs_state));
 	qsc_memutils_clear((uint8_t*)&rcv->pcns->txcpr, sizeof(qsc_rcs_state));
 	qsc_memutils_copy(kss->pssl, lpk->pss, DKTP_SECRET_SIZE);
@@ -89,7 +84,6 @@ static void listener_state_initialize(dktp_kex_server_state* kss, listener_recei
 }
 
 #if defined(DKTP_ASYMMETRIC_RATCHET)
-
 static void asymmetric_ratchet_update(qsc_rcs_state* cpr, uint8_t* pss, const uint8_t* ssec, bool encrypt)
 {
 	uint8_t prnd[DKTP_SYMMETRIC_KEY_SIZE + DKTP_SYMMETRIC_NONCE_SIZE] = { 0U };
@@ -123,77 +117,85 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 
 	if (packetin->sequence == cns->rxseq && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_REQUEST_MESSAGE_SIZE)
 	{
-		uint8_t imsg[DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE + DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE] = { 0U };
-		uint8_t hdr[DKTP_HEADER_SIZE] = { 0U };
-
-		/* serialize the header and add it to the ciphers associated data */
-		dktp_packet_header_serialize(packetin, hdr);
-		qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
-		mlen = packetin->msglen - (size_t)DKTP_MACTAG_SIZE;
-
-		/* authenticate then decrypt the data */
-		if (qsc_rcs_transform(&cns->rxcpr, imsg, packetin->pmessage, mlen) == true)
+		if (dktp_packet_time_valid(packetin) == true)
 		{
-			uint8_t rhash[DKTP_HASH_SIZE] = { 0U };
-			const uint8_t* rpub = imsg + DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
+			uint8_t imsg[DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE + DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE] = { 0U };
+			uint8_t hdr[DKTP_HEADER_SIZE] = { 0U };
 
-			/* verify the signature */
-			if (dktp_signature_verify(rhash, &mlen, imsg, DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE, cns->verkey) == true)
+			/* serialize the header and add it to the ciphers associated data */
+			dktp_packet_header_serialize(packetin, hdr);
+			qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
+			mlen = packetin->msglen - (size_t)DKTP_MACTAG_SIZE;
+
+			/* authenticate then decrypt the data */
+			if (qsc_rcs_transform(&cns->rxcpr, imsg, packetin->pmessage, mlen) == true)
 			{
-				uint8_t lhash[DKTP_HASH_SIZE] = { 0U };
+				uint8_t rhash[DKTP_HASH_SIZE] = { 0U };
+				const uint8_t* rpub = imsg + DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
 
-				/* hash the public key */
-				qsc_sha3_compute256(lhash, rpub, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-
-				/* compare the signed hash with the local hash */
-				if (qsc_intutils_verify(rhash, lhash, DKTP_HASH_SIZE) == 0)
+				/* verify the signature */
+				if (dktp_signature_verify(rhash, &mlen, imsg, DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE, cns->verkey) == true)
 				{
-					dktp_network_packet pkt = { 0 };
-					uint8_t omsg[DKTP_ASYMMETRIC_RATCHET_RESPONSE_PACKET_SIZE] = { 0U };
-					uint8_t mtmp[DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE] = { 0 };					
-					uint8_t khash[DKTP_HASH_SIZE] = { 0U };
-					uint8_t ssec[DKTP_SYMMETRIC_KEY_SIZE] = { 0U };
-					size_t slen;
+					uint8_t lhash[DKTP_HASH_SIZE] = { 0U };
 
-					mlen = DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
+					/* hash the public key */
+					qsc_sha3_compute512(lhash, rpub, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 
-					/* encapsulate a secret with the public key */
-					dktp_cipher_encapsulate(ssec, mtmp + mlen, rpub, qsc_acp_generate);
-
-					/* compute a hash of the cipher-text */
-					qsc_sha3_compute256(khash, mtmp + mlen, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
-
-					/* sign the hash */
-					mlen = 0U;
-					dktp_signature_sign(mtmp, &mlen, khash, sizeof(khash), cns->sigkey, qsc_acp_generate);
-
-					/* create the outbound packet */
-					cns->txseq += 1U;
-					pkt.flag = dktp_flag_asymmetric_ratchet_response;
-					pkt.msglen = DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE;
-					pkt.sequence = cns->txseq;
-					mlen += DKTP_HEADER_SIZE + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE;
-
-					/* serialize the header */
-					dktp_packet_header_serialize(&pkt, omsg);
-					/* add the header to the ciphers associated data */
-					qsc_rcs_set_associated(&cns->txcpr, omsg, DKTP_HEADER_SIZE);
-					/* encrypt the message */
-					qsc_rcs_transform(&cns->txcpr, omsg + DKTP_HEADER_SIZE, mtmp, sizeof(mtmp));
-					mlen += DKTP_MACTAG_SIZE;
-
-					/* send the encrypted message */
-					slen = qsc_socket_send(&cns->target, omsg, mlen, qsc_socket_send_flag_none);
-					
-					if (slen == mlen)
+					/* compare the signed hash with the local hash */
+					if (qsc_intutils_verify(rhash, lhash, DKTP_HASH_SIZE) == 0)
 					{
-						/* pass the secret to the symmetric ratchet */
-						// receiver
-						asymmetric_ratchet_update(&cns->rxcpr, cns->pssr, ssec, false);
-						res = true;
-					}
+						dktp_network_packet pkt = { 0 };
+						uint8_t omsg[DKTP_ASYMMETRIC_RATCHET_RESPONSE_PACKET_SIZE] = { 0U };
+						uint8_t mtmp[DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE] = { 0 };
+						uint8_t khash[DKTP_HASH_SIZE] = { 0U };
+						uint8_t ssec[DKTP_SYMMETRIC_KEY_SIZE] = { 0U };
+						size_t slen;
 
-					qsc_memutils_clear(ssec, sizeof(ssec));
+						mlen = DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
+
+						/* encapsulate a secret with the public key */
+						dktp_cipher_encapsulate(ssec, mtmp + mlen, rpub, qsc_acp_generate);
+
+						/* compute a hash of the cipher-text */
+						qsc_sha3_compute512(khash, mtmp + mlen, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
+
+						/* sign the hash */
+						mlen = 0U;
+						dktp_signature_sign(mtmp, &mlen, khash, sizeof(khash), cns->sigkey, qsc_acp_generate);
+
+						/* create the outbound packet */
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+						qsc_async_mutex_lock(cns->txlock);
+#endif
+						cns->txseq += 1U;
+						pkt.flag = dktp_flag_asymmetric_ratchet_response;
+						pkt.msglen = DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE;
+						pkt.sequence = cns->txseq;
+						mlen += DKTP_HEADER_SIZE + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE;
+
+						/* serialize the header */
+						dktp_packet_header_serialize(&pkt, omsg);
+						/* add the header to the ciphers associated data */
+						qsc_rcs_set_associated(&cns->txcpr, omsg, DKTP_HEADER_SIZE);
+						/* encrypt the message */
+						qsc_rcs_transform(&cns->txcpr, omsg + DKTP_HEADER_SIZE, mtmp, sizeof(mtmp));
+						mlen += DKTP_MACTAG_SIZE;
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+						qsc_async_mutex_unlock(cns->txlock);
+#endif
+						/* send the encrypted message */
+						slen = qsc_socket_send(&cns->target, omsg, mlen, qsc_socket_send_flag_none);
+
+						if (slen == mlen)
+						{
+							/* pass the secret to the symmetric ratchet */
+							// receiver
+							asymmetric_ratchet_update(&cns->rxcpr, cns->pssr, ssec, false);
+							res = true;
+						}
+
+						qsc_memutils_clear(ssec, sizeof(ssec));
+					}
 				}
 			}
 		}
@@ -220,38 +222,47 @@ static bool asymmetric_ratchet_finalize(dktp_connection_state* cns, const dktp_n
 
 	if (packetin->sequence == cns->rxseq && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE)
 	{
-		/* serialize the header and add it to the ciphers associated data */
-		dktp_packet_header_serialize(packetin, hdr);
-		qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
-		mlen = packetin->msglen - (size_t)DKTP_MACTAG_SIZE;
-
-		/* authenticate then decrypt the data */
-		if (qsc_rcs_transform(&cns->rxcpr, imsg, packetin->pmessage, mlen) == true)
+		if (dktp_packet_time_valid(packetin) == true)
 		{
-			/* verify the signature using the senders public key */
-			if (dktp_signature_verify(rhash, &mlen, imsg, mpos, cns->verkey) == true)
+			/* serialize the header and add it to the ciphers associated data */
+			dktp_packet_header_serialize(packetin, hdr);
+			qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
+			mlen = packetin->msglen - (size_t)DKTP_MACTAG_SIZE;
+
+			/* authenticate then decrypt the data */
+			if (qsc_rcs_transform(&cns->rxcpr, imsg, packetin->pmessage, mlen) == true)
 			{
-				uint8_t lhash[DKTP_HASH_SIZE] = { 0U };
-
-				/* compute a hash of cipher-text */
-				qsc_sha3_compute256(lhash, imsg + mpos, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
-
-				/* verify the embedded hash against a hash of the cipher-text */
-				if (qsc_intutils_verify(rhash, lhash, DKTP_HASH_SIZE) == 0)
+				/* verify the signature using the senders public key */
+				if (dktp_signature_verify(rhash, &mlen, imsg, mpos, cns->verkey) == true)
 				{
-					/* decapsulate the secret */
-					res = dktp_cipher_decapsulate(ssec, imsg + mpos, cns->deckey);
+					uint8_t lhash[DKTP_HASH_SIZE] = { 0U };
 
-					if (res == true)
+					/* compute a hash of cipher-text */
+					qsc_sha3_compute512(lhash, imsg + mpos, DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE);
+
+					/* verify the embedded hash against a hash of the cipher-text */
+					if (qsc_intutils_verify(rhash, lhash, DKTP_HASH_SIZE) == 0)
 					{
-						/* pass the secret to the symmetric ratchet */
-						// transmitter
-						asymmetric_ratchet_update(&cns->txcpr, cns->pssl, ssec, true);
-					}
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+						qsc_async_mutex_lock(cns->txlock);
+#endif
+						/* decapsulate the secret */
+						res = dktp_cipher_decapsulate(ssec, imsg + mpos, cns->deckey);
 
-					qsc_memutils_clear(ssec, sizeof(ssec));
-					qsc_memutils_clear(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-					qsc_memutils_clear(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+						if (res == true)
+						{
+							/* pass the secret to the symmetric ratchet */
+							// transmitter
+							asymmetric_ratchet_update(&cns->txcpr, cns->pssl, ssec, true);
+						}
+
+						qsc_memutils_clear(ssec, sizeof(ssec));
+						qsc_memutils_clear(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+						qsc_memutils_clear(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+						qsc_async_mutex_unlock(cns->txlock);
+#endif
+					}
 				}
 			}
 		}
@@ -479,71 +490,6 @@ static void client_receive_loop(void* prcv)
 	}
 }
 
-static dktp_errors listener_send_keep_alive(dktp_keepalive_state* kctx, const qsc_socket* sock)
-{
-	DKTP_ASSERT(kctx != NULL);
-	DKTP_ASSERT(sock != NULL);
-
-	dktp_errors err;
-
-	err = dktp_error_bad_keep_alive;
-
-	if (qsc_socket_is_connected(sock) == true)
-	{
-		uint8_t spct[DKTP_HEADER_SIZE + DKTP_TIMESTAMP_SIZE] = { 0U };
-		dktp_network_packet resp = { 0 };
-		uint64_t etime;
-		size_t slen;
-
-		/* set the time and store in keep-alive struct */
-		etime = qsc_timestamp_datetime_utc();
-		kctx->etime = etime;
-
-		/* assemble the keep-alive packet */
-		resp.pmessage = spct + DKTP_HEADER_SIZE;
-		resp.flag = dktp_flag_keep_alive_request;
-		resp.sequence = kctx->seqctr;
-		resp.msglen = DKTP_TIMESTAMP_SIZE;
-		qsc_intutils_le64to8(resp.pmessage, etime);
-		dktp_packet_header_serialize(&resp, spct);
-
-		slen = qsc_socket_send(sock, spct, sizeof(spct), qsc_socket_send_flag_none);
-
-		if (slen == DKTP_HEADER_SIZE + DKTP_TIMESTAMP_SIZE)
-		{
-			err = dktp_error_none;
-		}
-	}
-
-	return err;
-}
-
-static dktp_errors listener_keepalive_loop(dktp_keepalive_state* kpa)
-{
-	DKTP_ASSERT(kpa != NULL);
-
-	qsc_mutex mtx;
-	dktp_errors err;
-
-	do
-	{
-		mtx = qsc_async_mutex_lock_ex();
-		kpa->recd = false;
-		err = listener_send_keep_alive(kpa, &kpa->target);
-
-		if (kpa->recd == false)
-		{
-			err = dktp_error_keepalive_expired;
-		}
-
-		qsc_async_mutex_unlock_ex(mtx);
-		qsc_async_thread_sleep(DKTP_KEEPALIVE_TIMEOUT);
-	} 
-	while (err == dktp_error_none);
-
-	return err;
-}
-
 static void listener_receive_loop(listener_receiver_state* prcv)
 {
 	DKTP_ASSERT(prcv != NULL);
@@ -636,39 +582,12 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 									break;
 								}
 							}
-							else if (pkt.flag == dktp_flag_keep_alive_response)
-							{
-								/* test the keepalive */
-
-								if (pkt.sequence == prcv->pkpa->seqctr)
-								{
-									uint64_t tme;
-
-									tme = qsc_intutils_le8to64(pkt.pmessage);
-
-									if (prcv->pkpa->etime == tme)
-									{
-										prcv->pkpa->seqctr += 1U;
-										prcv->pkpa->recd = true;
-									}
-									else
-									{
-										dktp_log_write(dktp_messages_keepalive_fail, (const char*)prcv->pcns->target.address);
-										break;
-									}
-								}
-								else
-								{
-									dktp_log_write(dktp_messages_keepalive_timeout, (const char*)prcv->pcns->target.address);
-									break;
-								}
-							}
 			#if defined(DKTP_ASYMMETRIC_RATCHET)
 							else if (pkt.flag == dktp_flag_asymmetric_ratchet_request)
 							{
 								if (asymmetric_ratchet_response(prcv->pcns, &pkt) == false)
 								{
-									dktp_log_write(dktp_messages_keepalive_timeout, (const char*)prcv->pcns->target.address);
+									dktp_log_write(dktp_messages_asymmetric_ratchet, (const char*)prcv->pcns->target.address);
 									break;
 								}
 							}
@@ -676,7 +595,7 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 							{
 								if (asymmetric_ratchet_finalize(prcv->pcns, &pkt) == false)
 								{
-									dktp_log_write(dktp_messages_keepalive_timeout, (const char*)prcv->pcns->target.address);
+									dktp_log_write(dktp_messages_asymmetric_ratchet, (const char*)prcv->pcns->target.address);
 									break;
 								}
 							}
@@ -731,16 +650,6 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 	}
 }
 
-static void listener_keepalive_loop_wrapper(void* state)
-{
-	listener_keepalive_loop_args* args = (listener_keepalive_loop_args*)state;
-
-	if (args != NULL)
-	{
-		args->result = listener_keepalive_loop(args->pkpa);
-	}
-}
-
 static void listener_receive_loop_wrapper(void* state)
 {
 	listener_receive_loop_args* args = (listener_receive_loop_args*)state;
@@ -761,7 +670,6 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 	DKTP_ASSERT(send_func != NULL);
 
 	listener_receive_loop_args largs = { 0 };
-	listener_keepalive_loop_args kargs = { 0 };
 	dktp_kex_server_state* pkss;
 	dktp_errors err;
 
@@ -800,9 +708,6 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 
 		if (err == dktp_error_none)
 		{
-			/* start the keep-alive mechanism on a new thread */
-			kargs.pkpa = prcv->pkpa;
-			qsc_async_thread_create(&listener_keepalive_loop_wrapper, &kargs);
 			/* initialize the receiver loop on a new thread */
 			largs.prcv = prcv;
 			qsc_async_thread_create(&listener_receive_loop_wrapper, &largs);
@@ -871,11 +776,15 @@ bool dktp_send_asymmetric_ratchet_request(dktp_connection_state* cns)
 		size_t smlen;
 		size_t slen;
 
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+		qsc_async_mutex_lock(cns->txlock);
+#endif
 		cns->txseq += 1U;
 		pkt.pmessage = spct + DKTP_HEADER_SIZE;
 		pkt.flag = dktp_flag_asymmetric_ratchet_request;
 		pkt.msglen = DKTP_ASYMMETRIC_RATCHET_REQUEST_MESSAGE_SIZE;
 		pkt.sequence = cns->txseq;
+		dktp_packet_set_utc_time(&pkt);
 
 		dktp_packet_header_serialize(&pkt, spct);
 		mlen = DKTP_HEADER_SIZE;
@@ -884,7 +793,7 @@ bool dktp_send_asymmetric_ratchet_request(dktp_connection_state* cns)
 		dktp_cipher_generate_keypair(cns->enckey, cns->deckey, qsc_acp_generate);
 
 		/* hash the public key */
-		qsc_sha3_compute256(khash, cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+		qsc_sha3_compute512(khash, cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 
 		/* sign the hash */
 		smlen = 0U;
@@ -900,6 +809,9 @@ bool dktp_send_asymmetric_ratchet_request(dktp_connection_state* cns)
 		qsc_rcs_transform(&cns->txcpr, pkt.pmessage, pmsg, sizeof(pmsg));
 		mlen += DKTP_MACTAG_SIZE;
 
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+		qsc_async_mutex_unlock(cns->txlock);
+#endif
 		/* send the ratchet request */
 		slen = qsc_socket_send(&cns->target, spct, mlen, qsc_socket_send_flag_none);
 
@@ -1232,37 +1144,22 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 				if (prcv->pcns != NULL)
 				{
 					qsc_memutils_clear((uint8_t*)prcv->pcns, sizeof(dktp_connection_state));
-					prcv->pkpa = (dktp_keepalive_state*)qsc_memutils_malloc(sizeof(dktp_keepalive_state));
+					prcv->callback = receive_callback;
 
-					if (prcv->pkpa != NULL)
+					addt = qsc_ipinfo_ipv4_address_any();
+					qsc_socket_server_initialize(&prcv->pcns->target);
+					qsc_socket_server_initialize(&srvs);
+
+					serr = qsc_socket_server_listen_ipv4(&srvs, &prcv->pcns->target, &addt, DKTP_CLIENT_PORT);
+
+					if (serr == qsc_socket_exception_success)
 					{
-						qsc_memutils_clear((uint8_t*)prcv->pkpa, sizeof(dktp_keepalive_state));
-						prcv->callback = receive_callback;
-
-						addt = qsc_ipinfo_ipv4_address_any();
-						qsc_socket_server_initialize(&prcv->pcns->target);
-						qsc_socket_server_initialize(&srvs);
-
-						serr = qsc_socket_server_listen_ipv4(&srvs, &prcv->pcns->target, &addt, DKTP_CLIENT_PORT);
-
-						if (serr == qsc_socket_exception_success)
-						{
-							err = listener_start(lpk, rpk, prcv, send_func);
-						}
-						else
-						{
-							dktp_log_message(dktp_messages_connection_fail);
-							err = dktp_error_connection_failure;
-						}
-
-						qsc_memutils_clear(prcv->pkpa, sizeof(dktp_keepalive_state));
-						qsc_memutils_alloc_free(prcv->pkpa);
-						prcv->pkpa = NULL;
+						err = listener_start(lpk, rpk, prcv, send_func);
 					}
 					else
 					{
-						dktp_log_message(dktp_messages_allocate_fail);
-						err = dktp_error_memory_allocation;
+						dktp_log_message(dktp_messages_connection_fail);
+						err = dktp_error_connection_failure;
 					}
 
 					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
@@ -1333,37 +1230,22 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 				if (prcv->pcns != NULL)
 				{
 					qsc_memutils_clear((uint8_t*)prcv->pcns, sizeof(dktp_connection_state));
-					prcv->pkpa = (dktp_keepalive_state*)qsc_memutils_malloc(sizeof(dktp_keepalive_state));
+					prcv->callback = receive_callback;
 
-					if (prcv->pkpa != NULL)
+					addt = qsc_ipinfo_ipv6_address_any();
+					qsc_socket_server_initialize(&prcv->pcns->target);
+					qsc_socket_server_initialize(&srvs);
+
+					serr = qsc_socket_server_listen_ipv6(&srvs, &prcv->pcns->target, &addt, DKTP_CLIENT_PORT);
+
+					if (serr == qsc_socket_exception_success)
 					{
-						qsc_memutils_clear((uint8_t*)prcv->pkpa, sizeof(dktp_keepalive_state));
-						prcv->callback = receive_callback;
-
-						addt = qsc_ipinfo_ipv6_address_any();
-						qsc_socket_server_initialize(&prcv->pcns->target);
-						qsc_socket_server_initialize(&srvs);
-
-						serr = qsc_socket_server_listen_ipv6(&srvs, &prcv->pcns->target, &addt, DKTP_CLIENT_PORT);
-
-						if (serr == qsc_socket_exception_success)
-						{
-							err = listener_start(lpk, rpk, prcv, send_func);
-						}
-						else
-						{
-							dktp_log_message(dktp_messages_connection_fail);
-							err = dktp_error_connection_failure;
-						}
-
-						qsc_memutils_clear(prcv->pkpa, sizeof(dktp_keepalive_state));
-						qsc_memutils_alloc_free(prcv->pkpa);
-						prcv->pkpa = NULL;
+						err = listener_start(lpk, rpk, prcv, send_func);
 					}
 					else
 					{
-						dktp_log_message(dktp_messages_allocate_fail);
-						err = dktp_error_memory_allocation;
+						dktp_log_message(dktp_messages_connection_fail);
+						err = dktp_error_connection_failure;
 					}
 
 					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));

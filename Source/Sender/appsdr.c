@@ -101,8 +101,8 @@ static void sender_print_banner(void)
 	qsc_consoleutils_print_line("Type 'dktp quit' to save the key state, close the connection.");
 	qsc_consoleutils_print_line("Type 'dktp asymmetric ratchet' to ratchet the connection key.");
 	qsc_consoleutils_print_line("");
-	qsc_consoleutils_print_line("Release:   v1.0.0.0a (A1)");
-	qsc_consoleutils_print_line("Date:      August 16, 2025");
+	qsc_consoleutils_print_line("Release:   v1.1.0.0a (A2)");
+	qsc_consoleutils_print_line("Date:      February 23, 2026");
 	qsc_consoleutils_print_line("Contact:   contact@qrcscorp.ca");
 	qsc_consoleutils_print_line("");
 }
@@ -418,6 +418,7 @@ static void sender_send_loop(dktp_connection_state* cns)
 	uint8_t msgstr[DKTP_CONNECTION_MTU] = { 0U };
 	char sin[DKTP_CONNECTION_MTU + 1U] = { 0 };
 	size_t mlen;
+	size_t slen;
 
 	mlen = 0U;
 	pkt.pmessage = pmsg;
@@ -425,11 +426,6 @@ static void sender_send_loop(dktp_connection_state* cns)
 	/* start the sender loop */
 	while (true)
 	{
-		if (mlen > 0U)
-		{
-			sender_print_prompt();
-		}
-
 		if (qsc_consoleutils_line_contains(sin, "dktp quit"))
 		{
 			break;
@@ -453,12 +449,12 @@ static void sender_send_loop(dktp_connection_state* cns)
 			}
 		}
 
-		mlen = qsc_consoleutils_get_line(sin, sizeof(sin)) - 1U;
+		slen = qsc_consoleutils_get_line(sin, sizeof(sin));
+		mlen = (slen > 0U) ? slen - 1U : 0U;
 
-		if (mlen > 0U && (sin[0U] == '\n' || sin[0U] == '\r'))
+		if (slen > 0U)
 		{
-			sender_print_message("");
-			mlen = 0U;
+			sender_print_prompt();
 		}
 	}
 
@@ -482,7 +478,6 @@ int main(void)
 		dktp_errors err;
 
 		res = sender_message_confirm("Connect to remote host (Y|N)?");
-		sender_print_prompt();
 
 		if (res == true)
 		{

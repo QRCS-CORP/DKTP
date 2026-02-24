@@ -21,6 +21,9 @@ void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool not
 				dktp_network_packet resp = { 0U };
 
 				/* build a disconnect message */
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+				qsc_async_mutex_lock(cns->txlock);
+#endif
 				cns->txseq += 1U;
 				resp.flag = dktp_flag_error_condition;
 				resp.sequence = cns->txseq;
@@ -55,6 +58,9 @@ void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool not
 					/* send the message */
 					qsc_socket_send(&cns->target, spct, sizeof(spct), qsc_socket_send_flag_none);
 				}
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+				qsc_async_mutex_unlock(cns->txlock);
+#endif
 			}
 
 			/* close the socket */
@@ -85,9 +91,7 @@ bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, c
 
 		if (cns != NULL && message != NULL)
 		{
-			cns->rxseq += 1;
-
-			if (pkt.sequence == cns->rxseq)
+			if (pkt.sequence == cns->rxseq + 1U)
 			{
 				if (cns->exflag == dktp_flag_session_established)
 				{
@@ -102,6 +106,7 @@ bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, c
 							/* authenticate then decrypt the data */
 							if (qsc_rcs_transform(&cns->rxcpr, dmsg, emsg, mlen) == true)
 							{
+								cns->rxseq += 1;
 								err = (dktp_errors)dmsg[0U];
 								res = true;
 							}
@@ -125,6 +130,12 @@ void dktp_connection_state_dispose(dktp_connection_state* cns)
 	{
 		qsc_rcs_dispose(&cns->rxcpr);
 		qsc_rcs_dispose(&cns->txcpr);
+		qsc_memutils_clear((uint8_t*)&cns->target, sizeof(qsc_socket));
+		cns->rxseq = 0U;
+		cns->txseq = 0U;
+		cns->cid = 0U;
+		cns->exflag = dktp_flag_none;
+		cns->receiver = false;
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 		qsc_memutils_clear(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
 		qsc_memutils_clear(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
@@ -132,13 +143,12 @@ void dktp_connection_state_dispose(dktp_connection_state* cns)
 		qsc_memutils_clear(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		qsc_memutils_clear(cns->pssl, DKTP_SECRET_SIZE);
 		qsc_memutils_clear(cns->pssr, DKTP_SECRET_SIZE);
+
+		if (cns->txlock)
+		{
+			qsc_async_mutex_destroy(cns->txlock);
+		}
 #endif
-		qsc_memutils_clear((uint8_t*)&cns->target, sizeof(qsc_socket));
-		cns->rxseq = 0U;
-		cns->txseq = 0U;
-		cns->cid = 0U;
-		cns->exflag = dktp_flag_none;
-		cns->receiver = false;
 	}
 }
 
@@ -377,9 +387,7 @@ dktp_errors dktp_packet_decrypt(dktp_connection_state* cns, uint8_t* message, si
 
 	if (cns != NULL && message != NULL && msglen != NULL && packetin != NULL)
 	{
-		cns->rxseq += 1U;
-
-		if (packetin->sequence == cns->rxseq)
+		if (packetin->sequence == cns->rxseq + 1U)
 		{
 			if (cns->exflag == dktp_flag_session_established)
 			{
@@ -394,6 +402,7 @@ dktp_errors dktp_packet_decrypt(dktp_connection_state* cns, uint8_t* message, si
 					/* authenticate then decrypt the data */
 					if (qsc_rcs_transform(&cns->rxcpr, message, packetin->pmessage, *msglen) == true)
 					{
+						cns->rxseq += 1U;
 						qerr = dktp_error_none;
 					}
 					else
@@ -437,6 +446,9 @@ dktp_errors dktp_packet_encrypt(dktp_connection_state* cns, dktp_network_packet*
 		{
 			uint8_t hdr[DKTP_HEADER_SIZE] = { 0U };
 
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+			qsc_async_mutex_lock(cns->txlock);
+#endif
 			/* assemble the encryption packet */
 			cns->txseq += 1U;
 			dktp_header_create(packetout, dktp_flag_encrypted_message, cns->txseq, (uint32_t)msglen + DKTP_MACTAG_SIZE);
@@ -446,7 +458,9 @@ dktp_errors dktp_packet_encrypt(dktp_connection_state* cns, dktp_network_packet*
 			qsc_rcs_set_associated(&cns->txcpr, hdr, DKTP_HEADER_SIZE);
 			/* encrypt the message */
 			qsc_rcs_transform(&cns->txcpr, packetout->pmessage, message, msglen);
-
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+			qsc_async_mutex_unlock(cns->txlock);
+#endif
 			qerr = dktp_error_none;
 		}
 		else
@@ -517,11 +531,27 @@ void dktp_packet_set_utc_time(dktp_network_packet* packet)
 
 bool dktp_packet_time_valid(const dktp_network_packet* packet)
 {
+	DKTP_ASSERT(packet != NULL);
+
 	uint64_t ltime;
+	bool res;
 
-	ltime = qsc_timestamp_datetime_utc();
+	res = false;
 
-	return (ltime >= packet->utctime - DKTP_PACKET_TIME_THRESHOLD && ltime <= packet->utctime + DKTP_PACKET_TIME_THRESHOLD);
+	if (packet != NULL)
+	{
+		ltime = qsc_timestamp_datetime_utc();
+
+		/* two-way variance to account for differences in system clocks */
+		if (ltime > 0U && ltime < UINT64_MAX &&
+			UINT64_MAX - packet->utctime >= DKTP_PACKET_TIME_THRESHOLD &&
+			packet->utctime >= DKTP_PACKET_TIME_THRESHOLD)
+		{
+			res = (ltime >= packet->utctime - DKTP_PACKET_TIME_THRESHOLD && ltime <= packet->utctime + DKTP_PACKET_TIME_THRESHOLD);
+		}
+	}
+
+	return res;
 }
 
 void dktp_local_peer_key_deserialize(dktp_local_peer_key* lpk, const uint8_t slpk[DKTP_LOCAL_PEER_KEY_ENCODED_SIZE])

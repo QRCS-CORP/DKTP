@@ -1,4 +1,5 @@
 #include "connections.h"
+#include "async.h"
 #include "memutils.h"
 
 /** \cond */
@@ -35,16 +36,30 @@ dktp_connection_state* dktp_connections_add(void)
 
 	if ((m_connection_set.length + 1U) <= m_connection_set.maximum)
 	{
-		m_connection_set.conset = qsc_memutils_realloc(m_connection_set.conset, (m_connection_set.length + 1U) * sizeof(dktp_connection_state));
-		m_connection_set.active = qsc_memutils_realloc(m_connection_set.active, (m_connection_set.length + 1U) * sizeof(bool));
+		dktp_connection_state* tcon;
 
-		if (m_connection_set.conset != NULL && m_connection_set.active != NULL)
+		tcon = qsc_memutils_realloc(m_connection_set.conset, (m_connection_set.length + 1U) * sizeof(dktp_connection_state));
+
+		if (tcon != NULL)
 		{
-			qsc_memutils_clear(&m_connection_set.conset[m_connection_set.length], sizeof(dktp_connection_state));
-			m_connection_set.conset[m_connection_set.length].cid = (uint32_t)m_connection_set.length;
-			m_connection_set.active[m_connection_set.length] = true;
-			cns = &m_connection_set.conset[m_connection_set.length];
-			++m_connection_set.length;
+			bool* tact;
+
+			m_connection_set.conset = tcon;
+			tact = qsc_memutils_realloc(m_connection_set.active, (m_connection_set.length + 1U) * sizeof(bool));
+
+			if (tact != NULL)
+			{
+				m_connection_set.active = tact;
+
+				if (m_connection_set.conset != NULL && m_connection_set.active != NULL)
+				{
+					qsc_memutils_clear(&m_connection_set.conset[m_connection_set.length], sizeof(dktp_connection_state));
+					m_connection_set.conset[m_connection_set.length].cid = (uint32_t)m_connection_set.length;
+					m_connection_set.active[m_connection_set.length] = true;
+					cns = &m_connection_set.conset[m_connection_set.length];
+					++m_connection_set.length;
+				}
+			}
 		}
 	}
 
@@ -83,6 +98,16 @@ void dktp_connections_dispose(void)
 {
 	if (m_connection_set.conset != NULL)
 	{
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+		for (size_t i = 0U; i < m_connection_set.length; ++i)
+		{
+			if (m_connection_set.conset[i].txlock)
+			{
+				qsc_async_mutex_destroy(m_connection_set.conset[i].txlock);
+			}
+		}
+#endif
+
 		dktp_connections_clear();
 
 		if (m_connection_set.conset != NULL)
@@ -191,6 +216,9 @@ dktp_connection_state* dktp_connections_next(void)
 			{
 				res = &m_connection_set.conset[i];
 				m_connection_set.active[i] = true;
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+				res->txlock = qsc_async_mutex_create();
+#endif
 				break;
 			}
 		}
@@ -198,6 +226,9 @@ dktp_connection_state* dktp_connections_next(void)
 	else
 	{
 		res = dktp_connections_add();
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+		res->txlock = qsc_async_mutex_create();
+#endif
 	}
 
 	return res;
@@ -212,6 +243,12 @@ void dktp_connections_reset(uint32_t cid)
 			qsc_memutils_clear(&m_connection_set.conset[i], sizeof(dktp_connection_state));
 			m_connection_set.conset[i].cid = (uint32_t)i;
 			m_connection_set.active[i] = false;
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+			if (m_connection_set.conset[i].txlock)
+			{
+				qsc_async_mutex_destroy(m_connection_set.conset[i].txlock);
+			}
+#endif
 			break;
 		}
 	}

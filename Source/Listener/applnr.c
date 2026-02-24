@@ -103,8 +103,8 @@ static void listener_print_banner(void)
 	qsc_consoleutils_print_line("Type 'dktp quit' to save the key state, close the connection.");
 	qsc_consoleutils_print_line("Type 'dktp asymmetric ratchet' to ratchet the connection key.");
 	qsc_consoleutils_print_line("");
-	qsc_consoleutils_print_line("Release:   v1.0.0.0a (A1)");
-	qsc_consoleutils_print_line("Date:      August 16, 2025");
+	qsc_consoleutils_print_line("Release:   v1.1.0.0a (A2)");
+	qsc_consoleutils_print_line("Date:      February 23, 2026");
 	qsc_consoleutils_print_line("Contact:   contact@qrcscorp.ca");
 	qsc_consoleutils_print_line("");
 }
