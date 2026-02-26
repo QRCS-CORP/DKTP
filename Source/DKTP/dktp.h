@@ -46,7 +46,7 @@
  * are provided in the accompanying LICENSE file or at https://www.qrcscorp.ca.
  *
  * Written by: John G. Underhill
- * Contact: contact@qrcscorp.ca
+ * Contact: contact@qrcscorp.ca 
  */
 
 #ifndef DKTP_H
