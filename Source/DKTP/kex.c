@@ -363,7 +363,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 
 					/* initialize cSHAKE tckl = H(secr, pssl) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssl, DKTP_SECRET_SIZE);
-					qsc_memutils_clear(secr, sizeof(secr));
+					qsc_memutils_secure_erase(secr, sizeof(secr));
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
 
 					/* initialize the symmetric cipher, and raise client channel-1 rx */
@@ -373,11 +373,11 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					kp.info = NULL;
 					kp.infolen = 0U;
 					qsc_rcs_initialize(&cns->rxcpr, &kp, false);
-					qsc_memutils_clear((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
+					qsc_memutils_secure_erase((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
 
 					/* pssr = H(pssr, tckr) */
 					qsc_cshake512_compute(kcs->pssr, DKTP_SECRET_SIZE, kcs->pssr, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
-					qsc_memutils_clear(prnd, sizeof(prnd));
+					qsc_memutils_secure_erase(prnd, sizeof(prnd));
 
 					/* assemble the establish-request packet */
 					dktp_header_create(packetout, dktp_flag_establish_request, cns->txseq, KEX_ESTABLISH_REQUEST_MESSAGE_SIZE);
@@ -560,8 +560,8 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 						qsc_sha3_compute512(kss->schash, hm, DKTP_HASH_SIZE);
 
 						/* initialize the packet and asymmetric encryption keys */
-						qsc_memutils_clear(kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-						qsc_memutils_clear(kss->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+						qsc_memutils_secure_erase(kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+						qsc_memutils_secure_erase(kss->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
 
 						/* generate the asymmetric encryption key-pair */
 						dktp_cipher_generate_keypair(kss->enckey, kss->deckey, qsc_acp_generate);
@@ -729,7 +729,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* initialize cSHAKE tckl = H(secl, pssr) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssl, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
-					qsc_memutils_clear(secr, sizeof(secr));
+					qsc_memutils_secure_erase(secr, sizeof(secr));
 
 					/* initialize the symmetric cipher, and raise client channel-1 tx */
 					qsc_rcs_keyparams kp = { 0 };
@@ -746,7 +746,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* initialize cSHAKE tckr = H(secr, pssl) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secl, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssr, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
-					qsc_memutils_clear(secl, sizeof(secl));
+					qsc_memutils_secure_erase(secl, sizeof(secl));
 
 					/* initialize the symmetric cipher, and raise client channel-1 rx */
 					kp.key = prnd;
@@ -755,11 +755,11 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					kp.info = NULL;
 					kp.infolen = 0U;
 					qsc_rcs_initialize(&cns->txcpr, &kp, true);
-					qsc_memutils_clear((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
+					qsc_memutils_secure_erase((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
 
 					/* pssl = H(pssl, tckl) */
 					qsc_cshake512_compute(kss->pssl, DKTP_SECRET_SIZE, kss->pssl, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
-					qsc_memutils_clear(prnd, sizeof(prnd));
+					qsc_memutils_secure_erase(prnd, sizeof(prnd));
 
 					qerr = dktp_error_none;
 					cns->exflag = dktp_flag_exchange_response;

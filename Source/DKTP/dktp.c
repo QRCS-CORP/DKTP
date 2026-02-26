@@ -137,12 +137,12 @@ void dktp_connection_state_dispose(dktp_connection_state* cns)
 		cns->exflag = dktp_flag_none;
 		cns->receiver = false;
 #if defined(DKTP_ASYMMETRIC_RATCHET)
-		qsc_memutils_clear(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-		qsc_memutils_clear(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-		qsc_memutils_clear(cns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-		qsc_memutils_clear(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-		qsc_memutils_clear(cns->pssl, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(cns->pssr, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->pssl, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(cns->pssr, DKTP_SECRET_SIZE);
 
 		if (cns->txlock)
 		{
@@ -264,7 +264,6 @@ const char* dktp_get_error_description(dktp_messages message)
 	if (message < DKTP_MESSAGE_STRING_DEPTH && message >= 0)
 	{
 		dsc = DKTP_MESSAGE_STRINGS[(size_t)message];
-
 	}
 
 	return dsc;
@@ -580,9 +579,9 @@ void dktp_local_peer_key_erase(dktp_local_peer_key* lpk)
 	qsc_memutils_clear(lpk->config, DKTP_CONFIG_SIZE);
 	qsc_memutils_clear(lpk->keyid, DKTP_KEYID_SIZE);
 	qsc_memutils_clear(lpk->peerid, DKTP_KEYID_SIZE);
-	qsc_memutils_clear(lpk->pss, DKTP_SECRET_SIZE);
-	qsc_memutils_clear(lpk->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-	qsc_memutils_clear(lpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+	qsc_memutils_secure_erase(lpk->pss, DKTP_SECRET_SIZE);
+	qsc_memutils_secure_erase(lpk->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+	qsc_memutils_secure_erase(lpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	lpk->expiration = 0;
 }
 
@@ -651,8 +650,8 @@ void dktp_remote_peer_key_erase(dktp_remote_peer_key* rpk)
 {
 	qsc_memutils_clear(rpk->config, DKTP_CONFIG_SIZE);
 	qsc_memutils_clear(rpk->keyid, DKTP_KEYID_SIZE);
-	qsc_memutils_clear(rpk->pss, DKTP_SECRET_SIZE);
-	qsc_memutils_clear(rpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+	qsc_memutils_secure_erase(rpk->pss, DKTP_SECRET_SIZE);
+	qsc_memutils_secure_erase(rpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	rpk->expiration = 0;
 }
 

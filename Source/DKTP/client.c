@@ -72,8 +72,8 @@ static void listener_state_initialize(dktp_kex_server_state* kss, listener_recei
 	qsc_memutils_copy(kss->verkey, lpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	qsc_memutils_copy(kss->rverkey, rpk->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 	kss->expiration = lpk->expiration;
-	qsc_memutils_clear((uint8_t*)&rcv->pcns->rxcpr, sizeof(qsc_rcs_state));
-	qsc_memutils_clear((uint8_t*)&rcv->pcns->txcpr, sizeof(qsc_rcs_state));
+	qsc_memutils_secure_erase((uint8_t*)&rcv->pcns->rxcpr, sizeof(qsc_rcs_state));
+	qsc_memutils_secure_erase((uint8_t*)&rcv->pcns->txcpr, sizeof(qsc_rcs_state));
 	qsc_memutils_copy(kss->pssl, lpk->pss, DKTP_SECRET_SIZE);
 	qsc_memutils_copy(kss->pssr, rpk->pss, DKTP_SECRET_SIZE);
 	rcv->pcns->exflag = dktp_flag_none;
@@ -99,11 +99,11 @@ static void asymmetric_ratchet_update(qsc_rcs_state* cpr, uint8_t* pss, const ui
 	kp.info = NULL;
 	kp.infolen = 0U;
 	qsc_rcs_initialize(cpr, &kp, encrypt);
-	qsc_memutils_clear((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
+	qsc_memutils_secure_erase((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
 
 	/* update the pre-shared secret */
 	qsc_cshake512_compute(pss, DKTP_SECRET_SIZE, prnd, DKTP_SECRET_SIZE, NULL, 0, pss, DKTP_SECRET_SIZE);
-	qsc_memutils_clear(prnd, sizeof(prnd));
+	qsc_memutils_secure_erase(prnd, sizeof(prnd));
 
 }
 
@@ -194,7 +194,7 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 							res = true;
 						}
 
-						qsc_memutils_clear(ssec, sizeof(ssec));
+						qsc_memutils_secure_erase(ssec, sizeof(ssec));
 					}
 				}
 			}
@@ -252,13 +252,13 @@ static bool asymmetric_ratchet_finalize(dktp_connection_state* cns, const dktp_n
 						if (res == true)
 						{
 							/* pass the secret to the symmetric ratchet */
-							// transmitter
 							asymmetric_ratchet_update(&cns->txcpr, cns->pssl, ssec, true);
 						}
 
-						qsc_memutils_clear(ssec, sizeof(ssec));
-						qsc_memutils_clear(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-						qsc_memutils_clear(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+						qsc_memutils_secure_erase(ssec, sizeof(ssec));
+						qsc_memutils_secure_erase(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+						qsc_memutils_secure_erase(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 						qsc_async_mutex_unlock(cns->txlock);
 #endif
@@ -278,16 +278,16 @@ static void client_kex_reset(dktp_kex_client_state* kcs)
 
 	if (kcs != NULL)
 	{
-		qsc_memutils_clear(kcs->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-		qsc_memutils_clear(kcs->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(kcs->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(kcs->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 		qsc_memutils_clear(kcs->keyid, DKTP_KEYID_SIZE);
-		qsc_memutils_clear(kcs->pssl, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(kcs->pssr, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(kcs->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(kcs->pssl, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(kcs->pssr, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(kcs->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		qsc_memutils_clear(kcs->schash, DKTP_HASH_SIZE);
-		qsc_memutils_clear(kcs->secl, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(kcs->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-		qsc_memutils_clear(kcs->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(kcs->secl, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(kcs->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+		qsc_memutils_secure_erase(kcs->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		kcs->expiration = 0U;
 	}
 }
@@ -298,15 +298,15 @@ static void server_kex_reset(dktp_kex_server_state* kss)
 
 	if (kss != NULL)
 	{
-		qsc_memutils_clear(kss->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-		qsc_memutils_clear(kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(kss->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(kss->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
 		qsc_memutils_clear(kss->keyid, DKTP_KEYID_SIZE);
-		qsc_memutils_clear(kss->pssl, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(kss->pssr, DKTP_SECRET_SIZE);
-		qsc_memutils_clear(kss->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(kss->pssl, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(kss->pssr, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(kss->rverkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		qsc_memutils_clear(kss->schash, DKTP_HASH_SIZE);
-		qsc_memutils_clear(kss->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-		qsc_memutils_clear(kss->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(kss->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+		qsc_memutils_secure_erase(kss->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		kss->expiration = 0U;
 	}
 }
@@ -719,8 +719,8 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 			/* update the pre-shared secrets */
 			qsc_memutils_copy(lpk->pss, prcv->pcns->pssl, DKTP_SECRET_SIZE);
 			qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
-			qsc_memutils_clear(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-			qsc_memutils_clear(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+			qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+			qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 #endif
 		}
 	}
@@ -905,8 +905,8 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 								/* update the pre-shared secrets */
 								qsc_memutils_copy(lpk->pss, prcv->pcns->pssl, DKTP_SECRET_SIZE);
 								qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
-								qsc_memutils_clear(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-								qsc_memutils_clear(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+								qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+								qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 #endif
 							}
 							else
@@ -924,7 +924,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 							err = dktp_error_connection_failure;
 						}
 
-						qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
+						qsc_memutils_secure_erase(prcv->pcns, sizeof(dktp_connection_state));
 						qsc_memutils_alloc_free(prcv->pcns);
 						prcv->pcns = NULL;
 					}
@@ -934,7 +934,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 						err = dktp_error_memory_allocation;
 					}
 
-					qsc_memutils_clear(prcv, sizeof(client_receiver_state));
+					qsc_memutils_secure_erase(prcv, sizeof(client_receiver_state));
 					qsc_memutils_alloc_free(prcv);
 					prcv = NULL;
 				}
@@ -1048,8 +1048,8 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 								/* update the pre-shared secrets */
 								qsc_memutils_copy(lpk->pss, prcv->pcns->pssl, DKTP_SECRET_SIZE);
 								qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
-								qsc_memutils_clear(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-								qsc_memutils_clear(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+								qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+								qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 #endif
 
 								/* disconnect the socket */
@@ -1067,7 +1067,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 							err = dktp_error_connection_failure;
 						}
 
-						qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
+						qsc_memutils_secure_erase(prcv->pcns, sizeof(dktp_connection_state));
 						qsc_memutils_alloc_free(prcv->pcns);
 						prcv->pcns = NULL;
 					}
@@ -1077,7 +1077,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 						err = dktp_error_memory_allocation;
 					}
 
-					qsc_memutils_clear(prcv, sizeof(client_receiver_state));
+					qsc_memutils_secure_erase(prcv, sizeof(client_receiver_state));
 					qsc_memutils_alloc_free(prcv);
 					prcv = NULL;
 				}
@@ -1162,7 +1162,7 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 						err = dktp_error_connection_failure;
 					}
 
-					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
+					qsc_memutils_secure_erase(prcv->pcns, sizeof(dktp_connection_state));
 					qsc_memutils_alloc_free(prcv->pcns);
 					prcv->pcns = NULL;
 				}
@@ -1172,7 +1172,7 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 					err = dktp_error_memory_allocation;
 				}
 
-				qsc_memutils_clear(prcv, sizeof(listener_receiver_state));
+				qsc_memutils_secure_erase(prcv, sizeof(listener_receiver_state));
 				qsc_memutils_alloc_free(prcv);
 				prcv = NULL;
 			}
@@ -1248,7 +1248,7 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 						err = dktp_error_connection_failure;
 					}
 
-					qsc_memutils_clear(prcv->pcns, sizeof(dktp_connection_state));
+					qsc_memutils_secure_erase(prcv->pcns, sizeof(dktp_connection_state));
 					qsc_memutils_alloc_free(prcv->pcns);
 					prcv->pcns = NULL;
 				}
@@ -1258,7 +1258,7 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 					err = dktp_error_memory_allocation;
 				}
 
-				qsc_memutils_clear(prcv, sizeof(listener_receiver_state));
+				qsc_memutils_secure_erase(prcv, sizeof(listener_receiver_state));
 				qsc_memutils_alloc_free(prcv);
 				prcv = NULL;
 			}
