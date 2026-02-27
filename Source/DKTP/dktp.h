@@ -94,7 +94,7 @@
 * The parameter sets used by DKTP are selected in the QSC library in the 
 * libraries qsccommon.h file. Settings are at library defaults, however, a true 512-bit
 * security system can be acheived by selecting the McEliece/SPHINCS+ parameter in DKTP
-* and setting SPHINCS+ to one of the 512-bit options in the QSC library.
+* and setting SPHINCS+ to one of the 512-bit options in the QSC library. 
 */
 
 /*!
