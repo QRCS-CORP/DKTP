@@ -138,7 +138,7 @@ static void server_receive_loop(void* prcv)
 												break;
 											}
 
-											qsc_memutils_clear(mstr, slen);
+											qsc_memutils_secure_erase(mstr, slen);
 											qsc_memutils_alloc_free(mstr);
 										}
 										else
