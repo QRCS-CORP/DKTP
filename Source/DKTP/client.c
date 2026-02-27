@@ -839,6 +839,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 
 	dktp_kex_client_state* kcs;
 	client_receiver_state* prcv;
+	qsc_thread trcv;
 	qsc_socket_exceptions serr;
 	dktp_errors err;
 
@@ -896,10 +897,13 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 								qsc_memutils_copy(prcv->pcns->pssr, rpk->pss, DKTP_SECRET_SIZE);
 #endif
 								/* start the receive loop on a new thread */
-								qsc_async_thread_create(&client_receive_loop, prcv);
+								trcv = qsc_async_thread_create(&client_receive_loop, prcv);
 
 								/* start the send loop on the main thread */
 								send_func(prcv->pcns);
+
+								/* terminate the receiver thread */
+								(void)qsc_async_thread_terminate(trcv);
 
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 								/* update the pre-shared secrets */
@@ -982,6 +986,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 
 	dktp_kex_client_state* kcs;
 	client_receiver_state* prcv;
+	qsc_thread trcv;
 	qsc_socket_exceptions serr;
 	dktp_errors err;
 
@@ -1039,10 +1044,13 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 								qsc_memutils_copy(prcv->pcns->pssr, rpk->pss, DKTP_SECRET_SIZE);
 #endif
 								/* start the receive loop on a new thread */
-								qsc_async_thread_create(&client_receive_loop, prcv);
+								trcv = qsc_async_thread_create(&client_receive_loop, prcv);
 
 								/* start the send loop on the main thread */
 								send_func(prcv->pcns);
+
+								/* terminate the receiver thread */
+								(void)qsc_async_thread_terminate(trcv);
 
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 								/* update the pre-shared secrets */

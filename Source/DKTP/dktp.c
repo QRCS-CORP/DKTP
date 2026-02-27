@@ -84,12 +84,12 @@ bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, c
 	res = false;
 	err = dktp_error_invalid_input;
 
-	if (cns->exflag == dktp_flag_session_established)
+	if (cns != NULL && message != NULL)
 	{
 		dktp_packet_header_deserialize(message, &pkt);
 		emsg = message + DKTP_HEADER_SIZE;
 
-		if (cns != NULL && message != NULL)
+		if (cns->exflag == dktp_flag_session_established)
 		{
 			if (pkt.sequence == cns->rxseq + 1U)
 			{

@@ -203,19 +203,14 @@ static const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof
 #define DKTP_CLIENT_PORT 31118U
 
 /*!
-* \def DKTP_CONNECTIONS_INIT 
-* \brief The intitial DKTP connections queue size
-*/
-#define DKTP_CONNECTIONS_INIT 1000U
-
-/*!
 * \def DKTP_CONNECTIONS_MAX
 * \brief The maximum number of connections
-* Calculated given approx 5k (3480 connection state + 1500 mtu + overhead),
-* per connection on 256GB of DRAM.
+* 
+* \details Modifiable constant: calculated given approx 5k 
+* (3480 connection state + 1500 mtu + overhead), per connection on 256GB of DRAM.
 * Can be scaled to a greater number provided the hardware can support it.
 */
-#define DKTP_CONNECTIONS_MAX 50000U
+#define DKTP_CONNECTIONS_MAX 50U
 
 /*!
 * \def DKTP_CONNECTION_MTU

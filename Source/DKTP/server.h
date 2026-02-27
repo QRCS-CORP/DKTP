@@ -85,18 +85,6 @@
 #define DKTP_SERVER_PAUSE_INTERVAL 100U
 
 /**
- * \brief Broadcast a message to all connected hosts.
- *
- * \details
- * This function iterates over all active connections managed by the server and transmits the specified message
- * to each connected host. It is useful for disseminating announcements or control messages across the network.
- *
- * \param message [const] A pointer to the message data to be broadcast.
- * \param msglen The length (in bytes) of the message.
- */
-DKTP_EXPORT_API void dktp_server_broadcast(const uint8_t* message, size_t msglen);
-
-/**
  * \brief Pause the server.
  *
  * \details

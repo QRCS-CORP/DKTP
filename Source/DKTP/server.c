@@ -22,8 +22,8 @@ typedef struct server_receiver_state
 /** \endcond */
 
 /** \cond */
-static bool m_server_pause;
-static bool m_server_run;
+volatile bool m_server_pause = false;
+volatile bool m_server_run = false;
 
 static void server_state_initialize(dktp_kex_server_state* kss, const server_receiver_state* prcv)
 {
@@ -36,7 +36,6 @@ static void server_state_initialize(dktp_kex_server_state* kss, const server_rec
 static void server_poll_sockets(void)
 {
 	size_t clen;
-	qsc_mutex mtx;
 
 	clen = dktp_connections_size();
 
@@ -46,14 +45,10 @@ static void server_poll_sockets(void)
 
 		if (cns != NULL && dktp_connections_active(i) == true)
 		{
-			mtx = qsc_async_mutex_lock_ex();
-
 			if (qsc_socket_is_connected(&cns->target) == false)
 			{
 				dktp_connections_reset(cns->cid);
 			}
-
-			qsc_async_mutex_unlock_ex(mtx);
 		}
 	}
 }
@@ -111,89 +106,101 @@ static void server_receive_loop(void* prcv)
 							if (rtmp != NULL)
 							{
 								rbuf = rtmp;
-							}
-						}
+								qsc_memutils_clear(rbuf, plen);
+								mlen = qsc_socket_receive(&pprcv->pcns->target, rbuf, plen, qsc_socket_receive_flag_wait_all);
 
-						if (rbuf != NULL)
-						{
-							qsc_memutils_clear(rbuf, plen);
-							mlen = qsc_socket_receive(&pprcv->pcns->target, rbuf, plen, qsc_socket_receive_flag_wait_all);
-							
-							if (mlen != 0U)
-							{
-								pkt.pmessage = rbuf + DKTP_HEADER_SIZE;
-
-								if (pkt.flag == dktp_flag_encrypted_message)
+								if (mlen != 0U)
 								{
-									uint8_t* mstr;
+									pkt.pmessage = rbuf + DKTP_HEADER_SIZE;
 
-									slen = pkt.msglen + DKTP_MACTAG_SIZE;
-									mstr = (uint8_t*)qsc_memutils_malloc(slen);
-
-									if (mstr != NULL)
+									if (pkt.flag == dktp_flag_encrypted_message)
 									{
-										qsc_memutils_clear(mstr, slen);
+										uint8_t* mstr;
 
-										err = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
+										slen = pkt.msglen - DKTP_MACTAG_SIZE;
 
-										if (err == dktp_error_none)
+										if (slen != 0U && slen <= DKTP_MESSAGE_MAX)
 										{
-											pprcv->receive_callback(pprcv->pcns, mstr, mlen);
+											mstr = (uint8_t*)qsc_memutils_malloc(slen);
+
+											if (mstr != NULL)
+											{
+												qsc_memutils_clear(mstr, slen);
+
+												err = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
+
+												if (err == dktp_error_none)
+												{
+													pprcv->receive_callback(pprcv->pcns, mstr, mlen);
+												}
+												else
+												{
+													/* close the connection on authentication failure */
+													dktp_log_write(dktp_messages_decryption_fail, cadd);
+													qsc_memutils_alloc_free(mstr);
+													break;
+												}
+
+												qsc_memutils_clear(mstr, slen);
+												qsc_memutils_alloc_free(mstr);
+											}
+											else
+											{
+												/* close the connection on memory allocation failure */
+												dktp_log_write(dktp_messages_allocate_fail, cadd);
+												break;
+											}
 										}
 										else
 										{
-											/* close the connection on authentication failure */
-											dktp_log_write(dktp_messages_decryption_fail, cadd);
+											/* zero sized message, we ignore because this could
+											be DOS attempt to bring down the connection */
+											dktp_log_system_error(dktp_error_invalid_request);
+										}
+									}
+									else if (pkt.flag == dktp_flag_error_condition)
+									{
+										/* anti-dos: break on error message is conditional
+										   on succesful authentication/decryption */
+										if (dktp_decrypt_error_message(&err, pprcv->pcns, rbuf) == true)
+										{
+											dktp_log_system_error(err);
 											break;
 										}
-
-										qsc_memutils_clear(mstr, slen);
-										qsc_memutils_alloc_free(mstr);
-									}
-									else
-									{
-										/* close the connection on memory allocation failure */
-										dktp_log_write(dktp_messages_allocate_fail, cadd);
-										break;
 									}
 								}
-								else if (pkt.flag == dktp_flag_error_condition)
+								else
 								{
-									/* anti-dos: break on error message is conditional
-									   on succesful authentication/decryption */
-									if (dktp_decrypt_error_message(&err, pprcv->pcns, rbuf) == true)
+									qsc_socket_exceptions serr = qsc_socket_get_last_error();
+
+									if (serr != qsc_socket_exception_success)
 									{
-										dktp_log_system_error(err);
-										break;
+										dktp_log_error(dktp_messages_receive_fail, serr, cadd);
+
+										/* fatal socket errors */
+										if (serr == qsc_socket_exception_circuit_reset ||
+											serr == qsc_socket_exception_circuit_terminated ||
+											serr == qsc_socket_exception_circuit_timeout ||
+											serr == qsc_socket_exception_dropped_connection ||
+											serr == qsc_socket_exception_network_failure ||
+											serr == qsc_socket_exception_shut_down)
+										{
+											dktp_log_write(dktp_messages_connection_fail, cadd);
+										}
 									}
 								}
 							}
 							else
 							{
-								qsc_socket_exceptions serr = qsc_socket_get_last_error();
-
-								if (serr != qsc_socket_exception_success)
-								{
-									dktp_log_error(dktp_messages_receive_fail, serr, cadd);
-
-									/* fatal socket errors */
-									if (serr == qsc_socket_exception_circuit_reset ||
-										serr == qsc_socket_exception_circuit_terminated ||
-										serr == qsc_socket_exception_circuit_timeout ||
-										serr == qsc_socket_exception_dropped_connection ||
-										serr == qsc_socket_exception_network_failure ||
-										serr == qsc_socket_exception_shut_down)
-									{
-										dktp_log_write(dktp_messages_connection_fail, cadd);
-									}
-								}
+								/* close the connection on memory allocation failure */
+								dktp_log_write(dktp_messages_allocate_fail, cadd);
+								break;
 							}
 						}
 						else
 						{
-							/* close the connection on memory allocation failure */
-							dktp_log_write(dktp_messages_allocate_fail, cadd);
-							break;
+							/* message size exceeds maximum allowable */
+							dktp_log_write(dktp_messages_invalid_request, cadd);
 						}
 					}
 				}
@@ -242,62 +249,64 @@ static dktp_errors server_start(const dktp_local_peer_key* lpk,
 	dktp_errors err;
 
 	err = dktp_error_none;
-	m_server_pause = false;
-	m_server_run = true;
+	qsc_async_atomic_bool_store(&m_server_pause, false);
+	qsc_async_atomic_bool_store(&m_server_run, true);
 	dktp_logger_initialize(NULL);
-	dktp_connections_initialize(DKTP_CONNECTIONS_INIT, DKTP_CONNECTIONS_MAX);
 
-	do
+	if (dktp_connections_initialize(DKTP_CONNECTIONS_MAX) == true)
 	{
-		dktp_connection_state* cns = dktp_connections_next();
-
-		if (cns != NULL)
+		do
 		{
-			res = qsc_socket_accept(source, &cns->target);
+			dktp_connection_state* cns = dktp_connections_next();
 
-			if (res == qsc_socket_exception_success)
+			if (cns != NULL)
 			{
-				server_receiver_state* prcv = (server_receiver_state*)qsc_memutils_malloc(sizeof(server_receiver_state));
+				res = qsc_socket_accept(source, &cns->target);
 
-				if (prcv != NULL)
+				if (res == qsc_socket_exception_success)
 				{
-					cns->target.connection_status = qsc_socket_state_connected;
-					prcv->pcns = cns;
-					prcv->pprik = lpk;
-					prcv->disconnect_callback = disconnect_callback;
-					prcv->receive_callback = receive_callback;
+					server_receiver_state* prcv = (server_receiver_state*)qsc_memutils_malloc(sizeof(server_receiver_state));
 
-					dktp_log_write(dktp_messages_connect_success, (const char*)cns->target.address);
-					/* start the receive loop on a new thread */
-					qsc_async_thread_create(&server_receive_loop, prcv);
-					server_poll_sockets();
+					if (prcv != NULL)
+					{
+						cns->target.connection_status = qsc_socket_state_connected;
+						prcv->pcns = cns;
+						prcv->pprik = lpk;
+						prcv->disconnect_callback = disconnect_callback;
+						prcv->receive_callback = receive_callback;
+
+						dktp_log_write(dktp_messages_connect_success, (const char*)cns->target.address);
+						/* start the receive loop on a new thread */
+						qsc_async_thread_create(&server_receive_loop, prcv);
+						server_poll_sockets();
+					}
+					else
+					{
+						dktp_connections_reset(cns->cid);
+						err = dktp_error_memory_allocation;
+						dktp_log_message(dktp_messages_sockalloc_fail);
+					}
 				}
 				else
 				{
 					dktp_connections_reset(cns->cid);
-					err = dktp_error_memory_allocation;
-					dktp_log_message(dktp_messages_sockalloc_fail);
+					err = dktp_error_accept_fail;
+					dktp_log_message(dktp_messages_accept_fail);
 				}
 			}
 			else
 			{
-				dktp_connections_reset(cns->cid);
-				err = dktp_error_accept_fail;
-				dktp_log_message(dktp_messages_accept_fail);
+				err = dktp_error_hosts_exceeded;
+				dktp_log_message(dktp_messages_queue_empty);
 			}
-		}
-		else
-		{
-			err = dktp_error_hosts_exceeded;
-			dktp_log_message(dktp_messages_queue_empty);
-		}
 
-		while (m_server_pause == true)
-		{
-			qsc_async_thread_sleep(DKTP_SERVER_PAUSE_INTERVAL);
-		}
-	} 
-	while (m_server_run == true);
+			while (qsc_async_atomic_bool_load(&m_server_pause) == true)
+			{
+				qsc_async_thread_sleep(DKTP_SERVER_PAUSE_INTERVAL);
+			}
+		} 
+		while (qsc_async_atomic_bool_load(&m_server_run) == true);
+	}
 
 	return err;
 }
@@ -305,45 +314,14 @@ static dktp_errors server_start(const dktp_local_peer_key* lpk,
 
 /* Public Functions */
 
-void dktp_server_broadcast(const uint8_t* message, size_t msglen)
-{
-	size_t clen;
-	size_t mlen;
-	qsc_mutex mtx;
-	dktp_network_packet pkt = { 0 };
-	uint8_t msgstr[DKTP_CONNECTION_MTU] = { 0U };
-
-	clen = dktp_connections_size();
-
-	for (size_t i = 0U; i < clen; ++i)
-	{
-		dktp_connection_state* cns = dktp_connections_index(i);
-
-		if (cns != NULL && dktp_connections_active(i) == true)
-		{
-			mtx = qsc_async_mutex_lock_ex();
-
-			if (qsc_socket_is_connected(&cns->target) == true)
-			{
-				dktp_packet_encrypt(cns, &pkt, message, msglen);
-				mlen = dktp_packet_to_stream(&pkt, msgstr);
-				qsc_socket_send(&cns->target, msgstr, mlen, qsc_socket_send_flag_none);
-			}
-
-			qsc_async_mutex_unlock_ex(mtx);
-		}
-	}
-}
-
 void dktp_server_pause(void)
 {
-	m_server_pause = true;
+	qsc_async_atomic_bool_store(&m_server_pause, true);
 }
 
 void dktp_server_quit(void)
 {
 	size_t clen;
-	qsc_mutex mtx;
 
 	clen = dktp_connections_size();
 
@@ -353,26 +331,22 @@ void dktp_server_quit(void)
 
 		if (cns != NULL && dktp_connections_active(i) == true)
 		{
-			mtx = qsc_async_mutex_lock_ex();
-
 			if (qsc_socket_is_connected(&cns->target) == true)
 			{
 				qsc_socket_close_socket(&cns->target);
 			}
 
 			dktp_connections_reset(cns->cid);
-
-			qsc_async_mutex_unlock_ex(mtx);
 		}
 	}
 
+	qsc_async_atomic_bool_store(&m_server_run, false);
 	dktp_connections_dispose();
-	m_server_run = false;
 }
 
 void dktp_server_resume(void)
 {
-	m_server_pause = false;
+	qsc_async_atomic_bool_store(&m_server_pause, false);
 }
 
 dktp_errors dktp_server_start_ipv4(qsc_socket* source, 

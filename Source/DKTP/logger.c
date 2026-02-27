@@ -11,9 +11,12 @@ static char m_log_path[QSC_SYSTEM_MAX_PATH] = { 0 };
 
 static void logger_default_path(char* path, size_t pathlen)
 {
+	DKTP_ASSERT(path != NULL);
+	DKTP_ASSERT(pathlen != 0U);
+
 	bool res;
 
-	if ((path != NULL) || (pathlen != 0U))
+	if (path != NULL && pathlen != 0U)
 	{
 		qsc_folderutils_get_directory(qsc_folderutils_directories_user_documents, path);
 		qsc_folderutils_append_delimiter(path);
@@ -153,6 +156,8 @@ size_t dktp_logger_size(void)
 
 bool dktp_logger_write(const char* message)
 {
+	DKTP_ASSERT(message != NULL);
+
 	char buf[DKTP_LOGGING_MESSAGE_MAX + QSC_TIMESTAMP_STRING_SIZE + 4U] = { 0 };
 	char dlm[4] = " : ";
 	qsc_mutex mtx;
