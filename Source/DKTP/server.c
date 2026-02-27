@@ -96,7 +96,7 @@ static void server_receive_loop(void* prcv)
 					{
 						dktp_packet_header_deserialize(rbuf, &pkt);
 
-						if (pkt.msglen > 0U && pkt.msglen <= DKTP_MESSAGE_MAX)
+						if (pkt.msglen > DKTP_MACTAG_SIZE && pkt.msglen <= DKTP_MESSAGE_MAX)
 						{
 							uint8_t* rtmp;
 
@@ -118,45 +118,36 @@ static void server_receive_loop(void* prcv)
 										uint8_t* mstr;
 
 										slen = pkt.msglen - DKTP_MACTAG_SIZE;
+										mstr = (uint8_t*)qsc_memutils_malloc(slen);
 
-										if (slen != 0U && slen <= DKTP_MESSAGE_MAX)
+										if (mstr != NULL)
 										{
-											mstr = (uint8_t*)qsc_memutils_malloc(slen);
+											qsc_memutils_clear(mstr, slen);
 
-											if (mstr != NULL)
+											err = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
+
+											if (err == dktp_error_none)
 											{
-												qsc_memutils_clear(mstr, slen);
-
-												err = dktp_packet_decrypt(pprcv->pcns, mstr, &mlen, &pkt);
-
-												if (err == dktp_error_none)
-												{
-													pprcv->receive_callback(pprcv->pcns, mstr, mlen);
-												}
-												else
-												{
-													/* close the connection on authentication failure */
-													dktp_log_write(dktp_messages_decryption_fail, cadd);
-													qsc_memutils_alloc_free(mstr);
-													break;
-												}
-
-												qsc_memutils_clear(mstr, slen);
-												qsc_memutils_alloc_free(mstr);
+												pprcv->receive_callback(pprcv->pcns, mstr, mlen);
 											}
 											else
 											{
-												/* close the connection on memory allocation failure */
-												dktp_log_write(dktp_messages_allocate_fail, cadd);
+												/* close the connection on authentication failure */
+												dktp_log_write(dktp_messages_decryption_fail, cadd);
+												qsc_memutils_alloc_free(mstr);
 												break;
 											}
+
+											qsc_memutils_clear(mstr, slen);
+											qsc_memutils_alloc_free(mstr);
 										}
 										else
 										{
-											/* zero sized message, we ignore because this could
-											be DOS attempt to bring down the connection */
-											dktp_log_system_error(dktp_error_invalid_request);
+											/* close the connection on memory allocation failure */
+											dktp_log_write(dktp_messages_allocate_fail, cadd);
+											break;
 										}
+
 									}
 									else if (pkt.flag == dktp_flag_error_condition)
 									{
