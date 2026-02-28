@@ -8,6 +8,121 @@
 #include "stringutils.h"
 #include "timestamp.h"
 
+const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof(char)] = "QRCS:PDEF:DKTP1A";
+
+#if defined(DKTP_CONFIG_DILITHIUM_KYBER)
+#	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_KYBER_S1K2P512)
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_kyber-s1_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_KYBER_S3K3P768)
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_kyber-s3_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_KYBER_S5K4P1024)
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s5_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_KYBER_S6K5P1280)
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_sha3_rcs";
+#	else
+#		error Invalid parameter set!
+#	endif
+#elif defined(DKTP_CONFIG_DILITHIUM_MCELIECE)
+#	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_MCELIECE_S1N3488T64)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_MCELIECE_S3N4608T96)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_mceliece-s3_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S5N6688T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s5_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S6N6960T119)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s6_sha3_rcs";
+#	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S7N8192T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s7_sha3_rcs";
+#	else
+#		error Invalid parameter set!
+#	endif
+#elif defined(DKTP_CONFIG_SPHINCS_MCELIECE)
+#	if defined(QSC_SPHINCSPLUS_S1S128SHAKERF) && defined(QSC_MCELIECE_S1N3488T64)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1f_mceliece-s1_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S1S128SHAKERS) && defined(QSC_MCELIECE_S1N3488T64)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1s_mceliece-s1_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERF) && defined(QSC_MCELIECE_S3N4608T96)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3f_mceliece-s3_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERS) && defined(QSC_MCELIECE_S3N4608T96)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3s_mceliece-s3_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S5N6688T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s5_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S5N6688T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s5_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S6N6960T119)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s6_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S6N6960T119)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s6_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S7N8192T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s7_sha3_rcs";
+#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S7N8192T128)
+static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s7_sha3_rcs";
+#	else
+#		error Invalid parameter set!
+#	endif
+#endif
+
+const char DKTP_ERROR_STRINGS[DKTP_ERROR_STRING_DEPTH][DKTP_ERROR_STRING_WIDTH] =
+{
+	"No error was detected",
+	"The socket accept function returned an error",
+	"The symmetric cipher had an authentication failure",
+	"The communications channel has failed",
+	"The device could not make a connection to the remote host",
+	"The transmission failed at the KEX connection phase",
+	"The asymmetric cipher failed to decapsulate the shared secret",
+	"The decryption authentication has failed",
+	"The transmission failed at the KEX establish phase",
+	"The transmission failed at the KEX exchange phase",
+	"The public - key hash is invalid",
+	"The server has run out of socket connections",
+	"The expected input was invalid",
+	"The packet flag was unexpected",
+	"The DKTP public key has expired",
+	"The key identity is unrecognized",
+	"The ratchet operation has failed",
+	"The listener function failed to initialize",
+	"The server has run out of memory",
+	"The packet has valid time expired",
+	"The packet was received out of sequence",
+	"The random generator has failed",
+	"The receiver failed at the network layer",
+	"The transmitter failed at the network layer",
+	"The protocol string was not recognized",
+	"The expected data could not be verified",
+	"The remote peer key identity does not match the local key",
+	"The remote host has disconnected",
+	"A general failure occurred"
+};
+
+const char DKTP_MESSAGE_STRINGS[DKTP_MESSAGE_STRING_DEPTH][DKTP_MESSAGE_STRING_WIDTH] =
+{
+	"The operation completed succesfully. ",
+	"The socket server accept function failed. ",
+	"The listener socket listener could not connect. ",
+	"The listener socket could not bind to the address. ",
+	"The listener socket could not be created. ",
+	"The server is connected to remote host: ",
+	"The socket receive function failed. ",
+	"The server had a memory allocation failure. ",
+	"The key exchange has experienced a failure. ",
+	"The server has disconnected from the remote host: ",
+	"The server has disconnected the client due to an error: ",
+	"The server has had a socket level error: ",
+	"The server has reached the maximum number of connections. ",
+	"The server listener socket has failed. ",
+	"The server has run out of socket connections. ",
+	"The message decryption has failed. ",
+	"The connection failed or was interrupted. ",
+	"The function received an invalid request. ",
+	"The remote peer identity does not match the local key. ",
+	"The host encountered an error: ",
+	"The host received an asymmetric ratchet request"
+};
+
+const char DKTP_RX_CHANNEL_IDENTITY[DKTP_CHANNEL_IDENTITY_LENGTH] = "DKTP:RXKEY:V1";
+const char DKTP_TX_CHANNEL_IDENTITY[DKTP_CHANNEL_IDENTITY_LENGTH] = "DKTP:TXKEY:V1";
+
 void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool notify)
 {
 	DKTP_ASSERT(cns != NULL);
