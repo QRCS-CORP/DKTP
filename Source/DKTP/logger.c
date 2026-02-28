@@ -8,12 +8,10 @@
 #include "timestamp.h"
 
 static char m_log_path[QSC_SYSTEM_MAX_PATH] = { 0 };
+static qsc_mutex m_log_mutex = NULL;
 
 static void logger_default_path(char* path, size_t pathlen)
 {
-	DKTP_ASSERT(path != NULL);
-	DKTP_ASSERT(pathlen != 0U);
-
 	bool res;
 
 	if (path != NULL && pathlen != 0U)
@@ -36,34 +34,39 @@ static void logger_default_path(char* path, size_t pathlen)
 	}
 }
 
+void dktp_logger_dispose(void)
+{
+	if (m_log_mutex != NULL)
+	{
+		qsc_async_mutex_destroy(m_log_mutex);
+		m_log_mutex = NULL;
+	}
+
+	qsc_memutils_clear(m_log_path, sizeof(m_log_path));
+}
+
 void dktp_logger_initialize(const char* path)
 {
-	logger_default_path(m_log_path, QSC_SYSTEM_MAX_PATH);
+	qsc_memutils_clear(m_log_path, QSC_SYSTEM_MAX_PATH);
+	m_log_mutex = qsc_async_mutex_create();
+
+	if (path != NULL && qsc_fileutils_valid_path(path) == true)
+	{
+		size_t plen = qsc_stringutils_string_size(path);
+
+		if ((plen + 1U) <= QSC_SYSTEM_MAX_PATH)
+		{
+			qsc_memutils_copy(m_log_path, path, plen);
+		}
+	}
+
+	if (qsc_stringutils_string_size(m_log_path) == 0U)
+	{
+		logger_default_path(m_log_path, QSC_SYSTEM_MAX_PATH);
+	}
 
 	if (dktp_logger_exists() == false)
 	{
-		qsc_memutils_clear(m_log_path, QSC_SYSTEM_MAX_PATH);
-
-		if (path != NULL)
-		{
-			if (qsc_fileutils_valid_path(path) == true)
-			{
-				size_t plen;
-
-				plen = qsc_stringutils_string_size(path);
-
-				if ((plen + 1U) <= QSC_SYSTEM_MAX_PATH)
-				{
-					qsc_memutils_copy(m_log_path, path, plen);
-				}
-			}
-		}
-
-		if (qsc_stringutils_string_size(m_log_path) == 0U)
-		{
-			logger_default_path(m_log_path, QSC_SYSTEM_MAX_PATH);
-		}
-
 		dktp_logger_reset();
 	}
 }
@@ -84,7 +87,7 @@ bool dktp_logger_exists(void)
 
 void dktp_logger_print(void)
 {
-	char buf[DKTP_LOGGING_MESSAGE_MAX] = { 0 };
+	char buf[DKTP_LOGGING_MESSAGE_MAX + 1U] = { 0 };
 	size_t lctr;
 	size_t mlen;
 
@@ -94,7 +97,7 @@ void dktp_logger_print(void)
 	{
 		do
 		{
-			mlen = qsc_fileutils_read_line(m_log_path, buf, sizeof(buf), lctr);
+			mlen = qsc_fileutils_read_line(m_log_path, buf, sizeof(buf) - 1U, lctr);
 			++lctr;
 
 			if (mlen > 0U)
@@ -109,13 +112,16 @@ void dktp_logger_print(void)
 
 void dktp_logger_read(char* output, size_t otplen)
 {
-	qsc_mutex mtx;
+	DKTP_ASSERT(output != NULL);
 
-	if ((output != NULL) && (otplen > 0U) && (dktp_logger_exists() == true))
+	if (output != NULL)
 	{
-		mtx = qsc_async_mutex_lock_ex();
-		qsc_fileutils_safe_read(m_log_path, 0, output, otplen);
-		qsc_async_mutex_unlock_ex(mtx);
+		if (dktp_logger_exists() == true)
+		{
+			qsc_async_mutex_lock(m_log_mutex);
+			qsc_fileutils_safe_read(m_log_path, 0U, output, otplen);
+			qsc_async_mutex_unlock(m_log_mutex);
+		}
 	}
 }
 
@@ -124,6 +130,8 @@ void dktp_logger_reset(void)
 	char dtm[QSC_TIMESTAMP_STRING_SIZE] = { 0 };
 	char msg[DKTP_LOGGING_MESSAGE_MAX] = "Created: ";
 	size_t mlen;
+
+	qsc_async_mutex_lock(m_log_mutex);
 
 	if (dktp_logger_exists() == true)
 	{
@@ -138,13 +146,15 @@ void dktp_logger_reset(void)
 	qsc_timestamp_current_datetime(dtm);
 	mlen = qsc_stringutils_concat_strings(msg, sizeof(msg), dtm);
 	qsc_fileutils_write_line(m_log_path, msg, mlen);
+
+	qsc_async_mutex_unlock(m_log_mutex);
 }
 
 size_t dktp_logger_size(void)
 {
 	size_t res;
 
-	res = 0;
+	res = 0U;
 
 	if (dktp_logger_exists() == true)
 	{
@@ -159,8 +169,7 @@ bool dktp_logger_write(const char* message)
 	DKTP_ASSERT(message != NULL);
 
 	char buf[DKTP_LOGGING_MESSAGE_MAX + QSC_TIMESTAMP_STRING_SIZE + 4U] = { 0 };
-	char dlm[4] = " : ";
-	qsc_mutex mtx;
+	char dlm[4U] = " : ";
 	size_t blen;
 	size_t mlen;
 	bool res;
@@ -178,49 +187,11 @@ bool dktp_logger_write(const char* message)
 			qsc_stringutils_concat_strings(buf, sizeof(buf), dlm);
 			blen = qsc_stringutils_concat_strings(buf, sizeof(buf), message);
 
-			mtx = qsc_async_mutex_lock_ex();
+			qsc_async_mutex_lock(m_log_mutex);
 			res = qsc_fileutils_write_line(m_log_path, buf, blen);
-			qsc_async_mutex_unlock_ex(mtx);
+			qsc_async_mutex_unlock(m_log_mutex);
 		}
 	}
 
 	return res;
 }
-
-#if defined(DKTP_DEBUG_MODE)
-bool dktp_logger_test(void)
-{
-	char buf[4 * DKTP_LOGGING_MESSAGE_MAX] = { 0 };
-	char msg1[] = "This is a test message: 1";
-	char msg2[] = "This is a test message: 2";
-	char msg3[] = "This is a test message: 3";
-	char msg4[] = "This is a test message: 4";
-	size_t flen;
-	size_t mlen;
-	bool res;
-
-	mlen = qsc_stringutils_string_size(msg1);
-	dktp_logger_initialize(NULL);
-	res = dktp_logger_exists();
-
-	if (res == true && mlen > 0)
-	{
-		dktp_logger_write(msg1);
-		dktp_logger_write(msg2);
-		flen = dktp_logger_size();
-
-		dktp_logger_print();
-		dktp_logger_reset();
-		flen = dktp_logger_size();
-
-		dktp_logger_write(msg3);
-		dktp_logger_write(msg4);
-		dktp_logger_print();
-
-		flen = dktp_logger_size();
-		dktp_logger_read(buf, flen);
-	}
-
-	return res;
-}
-#endif

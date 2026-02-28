@@ -673,7 +673,6 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 	dktp_kex_server_state* pkss;
 	dktp_errors err;
 
-	dktp_logger_initialize(NULL);
 	err = dktp_error_invalid_input;
 	pkss = (dktp_kex_server_state*)qsc_memutils_malloc(sizeof(dktp_kex_server_state));
 
@@ -969,6 +968,8 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 		err = dktp_error_invalid_input;
 	}
 
+	dktp_logger_dispose();
+
 	return err;
 }
 
@@ -1116,6 +1117,8 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 		err = dktp_error_invalid_input;
 	}
 
+	dktp_logger_dispose();
+
 	return err;
 }
 
@@ -1202,6 +1205,8 @@ dktp_errors dktp_client_listen_ipv4(dktp_local_peer_key* lpk,
 		err = dktp_error_invalid_input;
 	}
 
+	dktp_logger_dispose();
+
 	return err;
 }
 
@@ -1287,6 +1292,8 @@ dktp_errors dktp_client_listen_ipv6(dktp_local_peer_key* lpk,
 		dktp_log_message(dktp_messages_invalid_request);
 		err = dktp_error_invalid_input;
 	}
+
+	dktp_logger_dispose();
 
 	return err;
 }

@@ -107,6 +107,17 @@ static const char DKTP_LOGGER_FILE[] = "dktp.log";
 static const char DKTP_LOGGER_HEAD[] = "DKTP Version 1.1a";
 
 /**
+ * \brief Dispose of the logger.
+ *
+ * \details
+ * Flushes any pending state, destroys the mutex created during initialisation,
+ * and resets all internal logger state. This function must be called once when
+ * the logging subsystem is no longer required, typically at application shutdown.
+ * Calling any other logger function after dispose results in undefined behaviour.
+ */
+void dktp_logger_dispose(void);
+
+/**
  * \brief Check if the DKTP log file exists.
  *
  * \details
