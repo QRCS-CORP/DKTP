@@ -54,6 +54,12 @@
 
 #include "dktp.h"
 
+/*!
+ * \def DKTP_KEX_TEST_ENABLED
+ * \brief Enable to manually test the kex
+ */
+//#define DKTP_KEX_TEST_ENABLED
+
 /**
  * \file kex.h
  * \brief DKTP Key Exchange Functions.
@@ -168,6 +174,7 @@ dktp_errors dktp_kex_server_key_exchange(dktp_kex_server_state* kss, dktp_connec
  */
 dktp_errors dktp_kex_client_key_exchange(dktp_kex_client_state* kcs, dktp_connection_state* cns);
 
+#if defined(DKTP_KEX_TEST_ENABLED)
 /**
  * \brief Run internal tests for the key exchange functions.
  *
@@ -186,5 +193,6 @@ dktp_errors dktp_kex_client_key_exchange(dktp_kex_client_state* kcs, dktp_connec
  * \note This is an internal non-exportable API.
  */
 bool dktp_kex_test(void);
+#endif
 
 #endif

@@ -24,39 +24,39 @@ const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_sha3_rc
 #	endif
 #elif defined(DKTP_CONFIG_DILITHIUM_MCELIECE)
 #	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_MCELIECE_S1N3488T64)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_MCELIECE_S3N4608T96)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_mceliece-s3_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S5N6688T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s5_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s5_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S6N6960T119)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s6_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s6_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S7N8192T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s7_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s7_sha3_rcs";
 #	else
 #		error Invalid parameter set!
 #	endif
 #elif defined(DKTP_CONFIG_SPHINCS_MCELIECE)
 #	if defined(QSC_SPHINCSPLUS_S1S128SHAKERF) && defined(QSC_MCELIECE_S1N3488T64)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1f_mceliece-s1_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1f_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S1S128SHAKERS) && defined(QSC_MCELIECE_S1N3488T64)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1s_mceliece-s1_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1s_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERF) && defined(QSC_MCELIECE_S3N4608T96)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3f_mceliece-s3_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3f_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERS) && defined(QSC_MCELIECE_S3N4608T96)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3s_mceliece-s3_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3s_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S5N6688T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s5_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s5_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S5N6688T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s5_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s5_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S6N6960T119)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s6_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s6_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S6N6960T119)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s6_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s6_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S7N8192T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s7_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s7_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S7N8192T128)
-static const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s7_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s7_sha3_rcs";
 #	else
 #		error Invalid parameter set!
 #	endif
@@ -184,6 +184,36 @@ void dktp_connection_close(dktp_connection_state* cns, dktp_errors err, bool not
 	}
 }
 
+void dktp_connection_state_dispose(dktp_connection_state* cns)
+{
+	DKTP_ASSERT(cns != NULL);
+
+	if (cns != NULL)
+	{
+		qsc_rcs_dispose(&cns->rxcpr);
+		qsc_rcs_dispose(&cns->txcpr);
+		qsc_memutils_clear((uint8_t*)&cns->target, sizeof(qsc_socket));
+		cns->rxseq = 0U;
+		cns->txseq = 0U;
+		cns->cid = 0U;
+		cns->exflag = dktp_flag_none;
+		cns->receiver = false;
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+		qsc_memutils_secure_erase(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+		qsc_memutils_secure_erase(cns->pssl, DKTP_SECRET_SIZE);
+		qsc_memutils_secure_erase(cns->pssr, DKTP_SECRET_SIZE);
+
+		if (cns->txlock)
+		{
+			qsc_async_mutex_destroy(cns->txlock);
+		}
+#endif
+	}
+}
+
 bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, const uint8_t* message)
 {
 	DKTP_ASSERT(cns != NULL);
@@ -237,36 +267,6 @@ bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, c
 	return res;
 }
 
-void dktp_connection_state_dispose(dktp_connection_state* cns)
-{
-	DKTP_ASSERT(cns != NULL);
-
-	if (cns != NULL)
-	{
-		qsc_rcs_dispose(&cns->rxcpr);
-		qsc_rcs_dispose(&cns->txcpr);
-		qsc_memutils_clear((uint8_t*)&cns->target, sizeof(qsc_socket));
-		cns->rxseq = 0U;
-		cns->txseq = 0U;
-		cns->cid = 0U;
-		cns->exflag = dktp_flag_none;
-		cns->receiver = false;
-#if defined(DKTP_ASYMMETRIC_RATCHET)
-		qsc_memutils_secure_erase(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
-		qsc_memutils_secure_erase(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-		qsc_memutils_secure_erase(cns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
-		qsc_memutils_secure_erase(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-		qsc_memutils_secure_erase(cns->pssl, DKTP_SECRET_SIZE);
-		qsc_memutils_secure_erase(cns->pssr, DKTP_SECRET_SIZE);
-
-		if (cns->txlock)
-		{
-			qsc_async_mutex_destroy(cns->txlock);
-		}
-#endif
-	}
-}
-
 const char* dktp_error_to_string(dktp_errors error)
 {
 	const char* dsc;
@@ -279,6 +279,34 @@ const char* dktp_error_to_string(dktp_errors error)
 	}
 
 	return dsc;
+}
+
+void dktp_generate_keypair(dktp_remote_peer_key* enckey, dktp_local_peer_key* deckey, const uint8_t keyid[DKTP_KEYID_SIZE])
+{
+	DKTP_ASSERT(deckey != NULL);
+	DKTP_ASSERT(enckey != NULL);
+
+	if (deckey != NULL && enckey != NULL)
+	{
+
+		/* add the timestamp plus duration to the key */
+		deckey->expiration = qsc_timestamp_datetime_utc() + DKTP_PUBKEY_DURATION_SECONDS;
+		/* set the configuration and key-identity strings */
+		qsc_memutils_copy(deckey->config, DKTP_CONFIG_STRING, DKTP_CONFIG_SIZE);
+		qsc_memutils_copy(deckey->keyid, keyid, DKTP_KEYID_SIZE);
+		/* create the pre-shared secret */
+		qsc_acp_generate(deckey->pss, DKTP_SECRET_SIZE);
+
+		/* generate the signature key-pair */
+		dktp_signature_generate_keypair(deckey->verkey, deckey->sigkey, qsc_acp_generate);
+
+		/* copy the key expiration, config, key-id, and the signatures verification key, to the public key structure */
+		enckey->expiration = deckey->expiration;
+		qsc_memutils_copy(enckey->config, deckey->config, DKTP_CONFIG_SIZE);
+		qsc_memutils_copy(enckey->keyid, deckey->keyid, DKTP_KEYID_SIZE);
+		qsc_memutils_copy(enckey->pss, deckey->pss, DKTP_SECRET_SIZE);
+		qsc_memutils_copy(enckey->verkey, deckey->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+	}
 }
 
 void dktp_header_create(dktp_network_packet* packetout, dktp_flags flag, uint64_t sequence, uint32_t msglen)
@@ -340,34 +368,6 @@ dktp_errors dktp_header_validate(dktp_connection_state* cns, const dktp_network_
 	}
 
 	return merr;
-}
-
-void dktp_generate_keypair(dktp_remote_peer_key* enckey, dktp_local_peer_key* deckey, const uint8_t keyid[DKTP_KEYID_SIZE])
-{
-	DKTP_ASSERT(deckey != NULL);
-	DKTP_ASSERT(enckey != NULL);
-
-	if (deckey != NULL && enckey != NULL)
-	{
-
-		/* add the timestamp plus duration to the key */
-		deckey->expiration = qsc_timestamp_datetime_utc() + DKTP_PUBKEY_DURATION_SECONDS;
-		/* set the configuration and key-identity strings */
-		qsc_memutils_copy(deckey->config, DKTP_CONFIG_STRING, DKTP_CONFIG_SIZE);
-		qsc_memutils_copy(deckey->keyid, keyid, DKTP_KEYID_SIZE);
-		/* create the pre-shared secret */
-		qsc_acp_generate(deckey->pss, DKTP_SECRET_SIZE);
-
-		/* generate the signature key-pair */
-		dktp_signature_generate_keypair(deckey->verkey, deckey->sigkey, qsc_acp_generate);
-
-		/* copy the key expiration, config, key-id, and the signatures verification key, to the public key structure */
-		enckey->expiration = deckey->expiration;
-		qsc_memutils_copy(enckey->config, deckey->config, DKTP_CONFIG_SIZE);
-		qsc_memutils_copy(enckey->keyid, deckey->keyid, DKTP_KEYID_SIZE);
-		qsc_memutils_copy(enckey->pss, deckey->pss, DKTP_SECRET_SIZE);
-		qsc_memutils_copy(enckey->verkey, deckey->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
-	}
 }
 
 const char* dktp_get_error_description(dktp_messages message)
@@ -507,22 +507,30 @@ dktp_errors dktp_packet_decrypt(dktp_connection_state* cns, uint8_t* message, si
 			{
 				if (dktp_packet_time_valid(packetin) == true)
 				{
-					/* serialize the header and add it to the ciphers associated data */
-					dktp_packet_header_serialize(packetin, hdr);
-
-					qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
-					*msglen = (size_t)packetin->msglen - DKTP_MACTAG_SIZE;
-
-					/* authenticate then decrypt the data */
-					if (qsc_rcs_transform(&cns->rxcpr, message, packetin->pmessage, *msglen) == true)
+					if (packetin->msglen > DKTP_MACTAG_SIZE)
 					{
-						cns->rxseq += 1U;
-						qerr = dktp_error_none;
+						/* serialize the header and add it to the ciphers associated data */
+						dktp_packet_header_serialize(packetin, hdr);
+
+						qsc_rcs_set_associated(&cns->rxcpr, hdr, DKTP_HEADER_SIZE);
+						*msglen = (size_t)packetin->msglen - DKTP_MACTAG_SIZE;
+
+						/* authenticate then decrypt the data */
+						if (qsc_rcs_transform(&cns->rxcpr, message, packetin->pmessage, *msglen) == true)
+						{
+							cns->rxseq += 1U;
+							qerr = dktp_error_none;
+						}
+						else
+						{
+							*msglen = 0U;
+							qerr = dktp_error_authentication_failure;
+						}
 					}
 					else
 					{
 						*msglen = 0U;
-						qerr = dktp_error_authentication_failure;
+						qerr = dktp_error_receive_failure;
 					}
 				}
 				else

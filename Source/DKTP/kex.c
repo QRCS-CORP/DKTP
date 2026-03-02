@@ -11,16 +11,6 @@
 
 #define DKTP_KEX_SEQTIME_SIZE 16U
 
-#define KEX_SIMPLEX_CONNECT_REQUEST_MESSAGE_SIZE (DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE)
-#define KEX_SIMPLEX_CONNECT_REQUEST_PACKET_SIZE (DKTP_HEADER_SIZE + KEX_SIMPLEX_CONNECT_REQUEST_MESSAGE_SIZE)
-#define KEX_SIMPLEX_CONNECT_RESPONSE_MESSAGE_SIZE (DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE + DKTP_HASH_SIZE + DKTP_ASYMMETRIC_SIGNATURE_SIZE)
-#define KEX_SIMPLEX_CONNECT_RESPONSE_PACKET_SIZE (DKTP_HEADER_SIZE + KEX_SIMPLEX_CONNECT_RESPONSE_MESSAGE_SIZE)
-
-#define KEX_SIMPLEX_EXCHANGE_REQUEST_MESSAGE_SIZE (DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE)
-#define KEX_SIMPLEX_EXCHANGE_REQUEST_PACKET_SIZE (DKTP_HEADER_SIZE + KEX_SIMPLEX_EXCHANGE_REQUEST_MESSAGE_SIZE)
-#define KEX_SIMPLEX_EXCHANGE_RESPONSE_MESSAGE_SIZE (0)
-#define KEX_SIMPLEX_EXCHANGE_RESPONSE_PACKET_SIZE (DKTP_HEADER_SIZE + KEX_SIMPLEX_EXCHANGE_RESPONSE_MESSAGE_SIZE)
-
 #define KEX_CONNECT_REQUEST_MESSAGE_SIZE (DKTP_KEYID_SIZE + DKTP_CONFIG_SIZE + DKTP_HASH_SIZE + DKTP_ASYMMETRIC_SIGNATURE_SIZE)
 #define KEX_CONNECT_REQUEST_PACKET_SIZE (DKTP_HEADER_SIZE + KEX_CONNECT_REQUEST_MESSAGE_SIZE)
 #define KEX_CONNECT_RESPONSE_MESSAGE_SIZE (DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE + DKTP_HASH_SIZE + DKTP_ASYMMETRIC_SIGNATURE_SIZE)
@@ -209,7 +199,7 @@ static dktp_errors kex_client_exchange_request(dktp_kex_client_state* kcs, dktp_
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 			/* verify the public key hash */
-			if (qsc_intutils_verify(hmc, hm, DKTP_HASH_SIZE) == 0)
+			if (qsc_memutils_are_equal(hmc, hm, DKTP_HASH_SIZE) == true)
 			{
 				/* 2) update the transcript hash with the signature hash of the inbound pk_kem: sch = H(sch || hm) */
 				qsc_sha3_initialize(&kstate);
@@ -246,7 +236,7 @@ static dktp_errors kex_client_exchange_request(dktp_kex_client_state* kcs, dktp_
 				qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, kcs->schash);
 
 				/* sign the hash and add it to the message */
-				mlen = 0;
+				mlen = 0U;
 				dktp_signature_sign(packetout->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE + DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE, &mlen, hm, DKTP_HASH_SIZE, kcs->sigkey, qsc_acp_generate);
 
 				qerr = dktp_error_none;
@@ -333,7 +323,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 			/* verify the cipher-text hash */
-			if (qsc_intutils_verify(hmc, hm, DKTP_HASH_SIZE) == 0)
+			if (qsc_memutils_are_equal(hmc, hm, DKTP_HASH_SIZE) == true)
 			{
 				/* 4) update the transcript hash with the signature hash of the inbound ciphertext: sch = H(sch || hm) */
 				qsc_sha3_initialize(&kstate);
@@ -347,7 +337,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 
 					/* initialize cSHAKE tckr = H(secl, pssr) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, kcs->secl, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssr, DKTP_SECRET_SIZE);
-					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
+					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 
 					/* initialize the symmetric cipher, and raise client channel-1 tx */
 					qsc_rcs_keyparams kp = { 0 };
@@ -359,12 +349,12 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					qsc_rcs_initialize(&cns->txcpr, &kp, true);
 
 					/* pssl = H(pssl, tckl) */
-					qsc_cshake512_compute(kcs->pssl, DKTP_SECRET_SIZE, kcs->pssl, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
+					qsc_cshake512_compute(kcs->pssl, DKTP_SECRET_SIZE, kcs->pssl, DKTP_SECRET_SIZE, NULL, 0U, prnd, DKTP_SECRET_SIZE);
 
 					/* initialize cSHAKE tckl = H(secr, pssl) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssl, DKTP_SECRET_SIZE);
 					qsc_memutils_secure_erase(secr, sizeof(secr));
-					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
+					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 
 					/* initialize the symmetric cipher, and raise client channel-1 rx */
 					kp.key = prnd;
@@ -376,7 +366,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					qsc_memutils_secure_erase((uint8_t*)&kp, sizeof(qsc_rcs_keyparams));
 
 					/* pssr = H(pssr, tckr) */
-					qsc_cshake512_compute(kcs->pssr, DKTP_SECRET_SIZE, kcs->pssr, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
+					qsc_cshake512_compute(kcs->pssr, DKTP_SECRET_SIZE, kcs->pssr, DKTP_SECRET_SIZE, NULL, 0U, prnd, DKTP_SECRET_SIZE);
 					qsc_memutils_secure_erase(prnd, sizeof(prnd));
 
 					/* assemble the establish-request packet */
@@ -454,7 +444,7 @@ static dktp_errors kex_client_establish_verify(dktp_kex_client_state* kcs, dktp_
 		if (qsc_rcs_transform(&cns->rxcpr, hm, packetin->pmessage, DKTP_HASH_SIZE) == true)
 		{
 			/* verify the server schash */
-			if (qsc_intutils_verify(hm, kcs->schash, DKTP_HASH_SIZE) == 0)
+			if (qsc_memutils_are_equal(hm, kcs->schash, DKTP_HASH_SIZE) == true)
 			{
 				cns->exflag = dktp_flag_session_established;
 				qerr = dktp_error_none;
@@ -553,7 +543,7 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 					qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hmc);
 
 					/* verify the message hash */
-					if (qsc_intutils_verify(hm, hmc, DKTP_HASH_SIZE) == 0)
+					if (qsc_memutils_are_equal(hm, hmc, DKTP_HASH_SIZE) == true)
 					{
 						/* 1) start the transcript hash with the keyid and configuration string hash; pkh = H(hm) */
 						qsc_memutils_clear(kss->schash, DKTP_HASH_SIZE);
@@ -688,7 +678,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 			qsc_sha3_finalize(&kstate, qsc_keccak_rate_512, hm);
 
 			/* verify the public key hash */
-			if (qsc_intutils_verify(hm, khash, DKTP_HASH_SIZE) == 0)
+			if (qsc_memutils_are_equal(hm, khash, DKTP_HASH_SIZE) == true)
 			{
 				uint8_t secl[DKTP_SECRET_SIZE] = { 0U };
 				uint8_t secr[DKTP_SECRET_SIZE] = { 0U };
@@ -728,7 +718,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					
 					/* initialize cSHAKE tckl = H(secl, pssr) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssl, DKTP_SECRET_SIZE);
-					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
+					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 					qsc_memutils_secure_erase(secr, sizeof(secr));
 
 					/* initialize the symmetric cipher, and raise client channel-1 tx */
@@ -745,7 +735,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 
 					/* initialize cSHAKE tckr = H(secr, pssl) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secl, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssr, DKTP_SECRET_SIZE);
-					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2);
+					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 					qsc_memutils_secure_erase(secl, sizeof(secl));
 
 					/* initialize the symmetric cipher, and raise client channel-1 rx */
@@ -830,7 +820,7 @@ static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dkt
 			qsc_keccak_state kstate = { 0 };
 
 			/* verify the schash */
-			if (qsc_intutils_verify(hm, kss->schash, DKTP_HASH_SIZE) == 0)
+			if (qsc_memutils_are_equal(hm, kss->schash, DKTP_HASH_SIZE) == true)
 			{
 				/* assemble the establish-response packet */
 				dktp_header_create(packetout, dktp_flag_establish_response, cns->txseq, KEX_ESTABLISH_RESPONSE_MESSAGE_SIZE);
@@ -870,69 +860,158 @@ dktp_errors dktp_kex_client_key_exchange(dktp_kex_client_state* kcs, dktp_connec
 
 	dktp_network_packet reqt = { 0 };
 	dktp_network_packet resp = { 0 };
+	uint8_t* brqt;
+	uint8_t* brsp;
+	const size_t lrqt = KEX_EXCHANGE_REQUEST_PACKET_SIZE;
+	const size_t lrsp = KEX_CONNECT_RESPONSE_PACKET_SIZE;
 	size_t rlen;
 	size_t slen;
 	dktp_errors qerr;
 
+	qerr = dktp_error_invalid_input;
+
 	if (kcs != NULL && cns != NULL)
 	{
-		uint8_t* rbuf;
+		brqt = (uint8_t*)qsc_memutils_malloc(lrqt);
 
-		rbuf = (uint8_t*)qsc_memutils_malloc(QSC_SOCKET_TERMINATOR_SIZE);
-
-		if (rbuf != NULL)
+		if (brqt != NULL)
 		{
-			uint8_t* sbuf;
+			qsc_memutils_clear(brqt, lrqt);
+			reqt.pmessage = brqt + DKTP_HEADER_SIZE;
 
-			sbuf = (uint8_t*)qsc_memutils_malloc(KEX_CONNECT_REQUEST_PACKET_SIZE);
+			brsp = (uint8_t*)qsc_memutils_malloc(lrsp);
 
-			if (sbuf != NULL)
+			/* 1. connect stage */
+			if (brsp != NULL)
 			{
-				/* 1. connect stage */
-				qsc_memutils_clear(sbuf, KEX_CONNECT_REQUEST_PACKET_SIZE);
-				reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
+				qsc_memutils_clear(brsp, lrsp);
+				resp.pmessage = brsp + DKTP_HEADER_SIZE;
 
 				/* create the connection request packet */
 				qerr = kex_client_connect_request(kcs, cns, &reqt);
 
 				if (qerr == dktp_error_none)
 				{
-					dktp_packet_header_serialize(&reqt, sbuf);
+					dktp_packet_header_serialize(&reqt, brqt);
+
 					/* send the connection request */
-					slen = qsc_socket_send(&cns->target, sbuf, KEX_CONNECT_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
+					slen = qsc_socket_send(&cns->target, brqt, KEX_CONNECT_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
 
 					/* check the size sent */
 					if (slen == KEX_CONNECT_REQUEST_PACKET_SIZE)
 					{
 						/* increment the transmit sequence counter */
 						cns->txseq += 1U;
-						/* reallocate to the message connect response buffer size */
-						rbuf = (uint8_t*)qsc_memutils_realloc(rbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE);
 
-						if (rbuf != NULL)
+						/* blocking receive waits for connect response */
+						rlen = qsc_socket_receive(&cns->target, brsp, KEX_CONNECT_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+
+						if (rlen == KEX_CONNECT_RESPONSE_PACKET_SIZE)
 						{
-							/* allocated memory must be set to zero per MISRA */
-							qsc_memutils_clear(rbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE);
-							resp.pmessage = rbuf + DKTP_HEADER_SIZE;
+							/* convert server response to packet */
+							dktp_packet_header_deserialize(brsp, &resp);
+							/* validate the packet header including the timestamp */
+							qerr = dktp_header_validate(cns, &resp, dktp_flag_connect_request, resp.flag, cns->rxseq, KEX_CONNECT_RESPONSE_MESSAGE_SIZE);
 
-							/* blocking receive waits for connect response */
-							rlen = qsc_socket_receive(&cns->target, rbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+							/* 2. exchange stage */
+							if (qerr == dktp_error_none)
+							{
+								qsc_memutils_clear(brqt, lrqt);
 
-							if (rlen == KEX_CONNECT_RESPONSE_PACKET_SIZE)
-							{
-								/* convert server response to packet */
-								dktp_packet_header_deserialize(rbuf, &resp);
-								/* validate the packet header including the timestamp */
-								qerr = dktp_header_validate(cns, &resp, dktp_flag_connect_request, dktp_flag_connect_response, cns->rxseq, KEX_CONNECT_RESPONSE_MESSAGE_SIZE);
-							}
-							else
-							{
-								qerr = dktp_error_receive_failure;
+								/* create the exchange request packet */
+								qerr = kex_client_exchange_request(kcs, cns, &resp, &reqt);
+
+								if (qerr == dktp_error_none)
+								{
+									/* serialize the packet header to the buffer */
+									dktp_packet_header_serialize(&reqt, brqt);
+
+									/* send exchange request */
+									slen = qsc_socket_send(&cns->target, brqt, KEX_EXCHANGE_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
+
+									if (slen == KEX_EXCHANGE_REQUEST_PACKET_SIZE)
+									{
+										qsc_memutils_clear(brsp, lrsp);
+										cns->txseq += 1U;
+										
+										/* wait for exchange response */
+										rlen = qsc_socket_receive(&cns->target, brsp, KEX_EXCHANGE_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+
+										/* check the received size */
+										if (rlen == KEX_EXCHANGE_RESPONSE_PACKET_SIZE)
+										{
+											/* convert server response to packet */
+											dktp_packet_header_deserialize(brsp, &resp);
+											/* validate the header and timestamp */
+											qerr = dktp_header_validate(cns, &resp, dktp_flag_exchange_request, resp.flag, cns->rxseq, KEX_EXCHANGE_RESPONSE_MESSAGE_SIZE);
+
+											/* 3. establish stage */
+											if (qerr == dktp_error_none)
+											{
+												qsc_memutils_clear(brqt, lrqt);
+
+												/* create the establish request packet */
+												qerr = kex_client_establish_request(kcs, cns, &resp, &reqt);
+
+												if (qerr == dktp_error_none)
+												{
+													dktp_packet_header_serialize(&reqt, brqt);
+
+													/* send the establish request packet */
+													slen = qsc_socket_send(&cns->target, brqt, KEX_ESTABLISH_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
+
+													if (slen == KEX_ESTABLISH_REQUEST_PACKET_SIZE)
+													{
+														qsc_memutils_clear(brsp, lrsp);
+														cns->txseq += 1U;
+
+														/* wait for the establish response */
+														rlen = qsc_socket_receive(&cns->target, brsp, KEX_ESTABLISH_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+
+														if (rlen == KEX_ESTABLISH_RESPONSE_PACKET_SIZE)
+														{
+															dktp_packet_header_deserialize(brsp, &resp);
+
+															/* validate the header */
+															qerr = dktp_header_validate(cns, &resp, dktp_flag_establish_request, resp.flag, cns->rxseq, KEX_ESTABLISH_RESPONSE_MESSAGE_SIZE);
+
+															if (qerr == dktp_error_none)
+															{
+																/* verify the exchange  */
+																qerr = kex_client_establish_verify(kcs, cns, &resp);
+															}
+															else
+															{
+																qerr = dktp_error_packet_unsequenced;
+															}
+														}
+														else
+														{
+															qerr = dktp_error_receive_failure;
+														}
+													}
+													else
+													{
+														qerr = dktp_error_transmit_failure;
+													}
+												}
+											}
+										}
+										else
+										{
+											qerr = dktp_error_receive_failure;
+										}
+									}
+									else
+									{
+										qerr = dktp_error_transmit_failure;
+									}
+								}
 							}
 						}
 						else
 						{
-							qerr = dktp_error_memory_allocation;
+							qerr = dktp_error_receive_failure;
 						}
 					}
 					else
@@ -940,158 +1019,21 @@ dktp_errors dktp_kex_client_key_exchange(dktp_kex_client_state* kcs, dktp_connec
 						qerr = dktp_error_transmit_failure;
 					}
 				}
-
-				/* 2. exchange stage */
-				if (qerr == dktp_error_none)
+				else
 				{
-					sbuf = (uint8_t*)qsc_memutils_realloc(sbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE);
-
-					if (sbuf != NULL)
-					{
-						qsc_memutils_clear(sbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE);
-						reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
-
-						/* create the exchange request packet */
-						qerr = kex_client_exchange_request(kcs, cns, &resp, &reqt);
-
-						if (qerr == dktp_error_none)
-						{
-							/* serialize the packet header to the buffer */
-							dktp_packet_header_serialize(&reqt, sbuf);
-
-							/* send exchange request */
-							slen = qsc_socket_send(&cns->target, sbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
-
-							if (slen == KEX_EXCHANGE_REQUEST_PACKET_SIZE)
-							{
-								cns->txseq += 1U;
-								rbuf = (uint8_t*)qsc_memutils_realloc(rbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE);
-
-								if (rbuf != NULL)
-								{
-									qsc_memutils_clear(rbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE);
-									resp.pmessage = rbuf + DKTP_HEADER_SIZE;
-
-									/* wait for exchange response */
-									rlen = qsc_socket_receive(&cns->target, rbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
-
-									/* check the received size */
-									if (rlen == KEX_EXCHANGE_RESPONSE_PACKET_SIZE)
-									{
-										/* convert server response to packet */
-										dktp_packet_header_deserialize(rbuf, &resp);
-										/* validate the header and timestamp */
-										qerr = dktp_header_validate(cns, &resp, dktp_flag_exchange_request, dktp_flag_exchange_response, cns->rxseq, KEX_EXCHANGE_RESPONSE_MESSAGE_SIZE);
-									}
-									else
-									{
-										qerr = dktp_error_receive_failure;
-									}
-								}
-								else
-								{
-									qerr = dktp_error_memory_allocation;
-								}
-							}
-							else
-							{
-								qerr = dktp_error_transmit_failure;
-							}
-						}
-					}
-					else
-					{
-						qerr = dktp_error_memory_allocation;
-					}
+					qerr = dktp_error_memory_allocation;
 				}
 
-				/* 3. establish stage */
-				if (qerr == dktp_error_none)
-				{
-					sbuf = (uint8_t*)qsc_memutils_realloc(sbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-
-					if (sbuf != NULL)
-					{
-						qsc_memutils_clear(sbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-						reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
-
-						/* create the establish request packet */
-						qerr = kex_client_establish_request(kcs, cns, &resp, &reqt);
-
-						if (qerr == dktp_error_none)
-						{
-							dktp_packet_header_serialize(&reqt, sbuf);
-
-							/* send the establish request packet */
-							slen = qsc_socket_send(&cns->target, sbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE, qsc_socket_send_flag_none);
-							/* clear the send buffer */
-							qsc_memutils_clear(sbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-
-							if (slen == KEX_ESTABLISH_REQUEST_PACKET_SIZE)
-							{
-								cns->txseq += 1U;
-								rbuf = (uint8_t*)qsc_memutils_realloc(rbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-
-								if (rbuf != NULL)
-								{
-									qsc_memutils_clear(rbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-									resp.pmessage = rbuf + DKTP_HEADER_SIZE;
-
-									/* wait for the establish response */
-									rlen = qsc_socket_receive(&cns->target, rbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
-
-									if (rlen == KEX_ESTABLISH_RESPONSE_PACKET_SIZE)
-									{
-										dktp_packet_header_deserialize(rbuf, &resp);
-										/* validate the header */
-										qerr = dktp_header_validate(cns, &resp, dktp_flag_establish_request, dktp_flag_establish_response, cns->rxseq, KEX_ESTABLISH_RESPONSE_MESSAGE_SIZE);
-
-										if (qerr == dktp_error_none)
-										{
-											/* verify the exchange  */
-											qerr = kex_client_establish_verify(kcs, cns, &resp);
-											/* clear receive buffer */
-											qsc_memutils_clear(rbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-										}
-										else
-										{
-											qerr = dktp_error_packet_unsequenced;
-										}
-									}
-									else
-									{
-										qerr = dktp_error_receive_failure;
-									}
-								}
-								else
-								{
-									qerr = dktp_error_memory_allocation;
-								}
-							}
-							else
-							{
-								qerr = dktp_error_transmit_failure;
-							}
-						}
-					}
-					else
-					{
-						qerr = dktp_error_memory_allocation;
-					}
-				}
-
-				qsc_memutils_alloc_free(sbuf);
+				qsc_memutils_secure_erase(brsp, lrsp);
+				qsc_memutils_alloc_free(brsp);
 			}
 			else
 			{
 				qerr = dktp_error_memory_allocation;
 			}
 
-			qsc_memutils_alloc_free(rbuf);
-		}
-		else
-		{
-			qerr = dktp_error_memory_allocation;
+			qsc_memutils_secure_erase(brqt, lrqt);
+			qsc_memutils_alloc_free(brqt);
 		}
 
 		if (qerr != dktp_error_none)
@@ -1120,67 +1062,144 @@ dktp_errors dktp_kex_server_key_exchange(dktp_kex_server_state* kss, dktp_connec
 
 	dktp_network_packet reqt = { 0 };
 	dktp_network_packet resp = { 0 };
+	uint8_t* brqt;
+	uint8_t* brsp;
+	const size_t lrqt = KEX_EXCHANGE_REQUEST_PACKET_SIZE;
+	const size_t lrsp = KEX_CONNECT_RESPONSE_PACKET_SIZE;
 	size_t rlen;
 	size_t slen;
 	dktp_errors qerr;
 
+	qerr = dktp_error_invalid_input;
+
 	if (kss != NULL && cns != NULL)
 	{
-		uint8_t* rbuf;
+		brqt = (uint8_t*)qsc_memutils_malloc(lrqt);
 
-		rbuf = (uint8_t*)qsc_memutils_malloc(KEX_CONNECT_REQUEST_PACKET_SIZE);
-
-		if (rbuf != NULL)
+		if (brqt != NULL)
 		{
-			uint8_t* sbuf;
+			qsc_memutils_clear(brqt, lrqt);
+			reqt.pmessage = brqt + DKTP_HEADER_SIZE;
 
-			sbuf = (uint8_t*)qsc_memutils_malloc(QSC_SOCKET_TERMINATOR_SIZE);
+			brsp = (uint8_t*)qsc_memutils_malloc(lrsp);
 
-			if (sbuf != NULL)
+			/* 1. connect stage */
+			if (brsp != NULL)
 			{
-				/* 1. connect stage */
-				qsc_memutils_clear(rbuf, KEX_CONNECT_REQUEST_PACKET_SIZE);
-				resp.pmessage = rbuf + DKTP_HEADER_SIZE;
+				qsc_memutils_clear(brsp, lrsp);
+				resp.pmessage = brsp + DKTP_HEADER_SIZE;
 
 				/* blocking receive waits for client connect request */
-				rlen = qsc_socket_receive(&cns->target, rbuf, KEX_CONNECT_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+				rlen = qsc_socket_receive(&cns->target, brqt, KEX_CONNECT_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
 
 				if (rlen == KEX_CONNECT_REQUEST_PACKET_SIZE)
 				{
 					/* convert server response to packet */
-					dktp_packet_header_deserialize(rbuf, &resp);
-					qerr = dktp_header_validate(cns, &resp, dktp_flag_none, dktp_flag_connect_request, cns->rxseq, KEX_CONNECT_REQUEST_MESSAGE_SIZE);
+					dktp_packet_header_deserialize(brqt, &reqt);
+					qerr = dktp_header_validate(cns, &reqt, dktp_flag_none, reqt.flag, cns->rxseq, KEX_CONNECT_REQUEST_MESSAGE_SIZE);
 
 					if (qerr == dktp_error_none)
 					{
-						sbuf = (uint8_t*)qsc_memutils_realloc(sbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE);
+						/* create the connection request packet */
+						qerr = kex_server_connect_response(kss, cns, &reqt, &resp);
 
-						if (sbuf != NULL)
+						if (qerr == dktp_error_none)
 						{
-							qsc_memutils_clear(sbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE);
-							reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
+							dktp_packet_header_serialize(&resp, brsp);
+							slen = qsc_socket_send(&cns->target, brsp, KEX_CONNECT_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
 
-							/* create the connection request packet */
-							qerr = kex_server_connect_response(kss, cns, &resp, &reqt);
-
-							if (qerr == dktp_error_none)
+							if (slen == KEX_CONNECT_RESPONSE_PACKET_SIZE)
 							{
-								dktp_packet_header_serialize(&reqt, sbuf);
-								slen = qsc_socket_send(&cns->target, sbuf, KEX_CONNECT_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
+								cns->txseq += 1U;
 
-								if (slen == KEX_CONNECT_RESPONSE_PACKET_SIZE)
+								/* 2. exchange stage */
+								if (qerr == dktp_error_none)
 								{
-									cns->txseq += 1U;
-								}
-								else
-								{
-									qerr = dktp_error_transmit_failure;
+									qsc_memutils_clear(brqt, lrqt);
+
+									/* wait for the exchange request */
+									rlen = qsc_socket_receive(&cns->target, brqt, KEX_EXCHANGE_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+
+									if (rlen == KEX_EXCHANGE_REQUEST_PACKET_SIZE)
+									{
+										dktp_packet_header_deserialize(brqt, &reqt);
+										qerr = dktp_header_validate(cns, &reqt, dktp_flag_connect_response, reqt.flag, cns->rxseq, KEX_EXCHANGE_REQUEST_MESSAGE_SIZE);
+
+										if (qerr == dktp_error_none)
+										{
+											qsc_memutils_clear(brsp, lrsp);
+
+											/* create the exchange response packet */
+											qerr = kex_server_exchange_response(kss, cns, &reqt, &resp);
+
+											if (qerr == dktp_error_none)
+											{
+												dktp_packet_header_serialize(&resp, brsp);
+												slen = qsc_socket_send(&cns->target, brsp, KEX_EXCHANGE_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
+
+												if (slen == KEX_EXCHANGE_RESPONSE_PACKET_SIZE)
+												{
+													cns->txseq += 1U;
+
+													/* 3. establish stage */
+													if (qerr == dktp_error_none)
+													{
+														qsc_memutils_clear(brqt, lrqt);
+
+														/* wait for the establish request */
+														rlen = qsc_socket_receive(&cns->target, brqt, KEX_ESTABLISH_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
+
+														if (rlen == KEX_ESTABLISH_REQUEST_PACKET_SIZE)
+														{
+															dktp_packet_header_deserialize(brqt, &reqt);
+															qerr = dktp_header_validate(cns, &reqt, dktp_flag_exchange_response, reqt.flag, cns->rxseq, KEX_ESTABLISH_REQUEST_MESSAGE_SIZE);
+
+															if (qerr == dktp_error_none)
+															{
+																qsc_memutils_clear(brsp, lrsp);
+
+																/* create the establish response packet */
+																qerr = kex_server_establish_response(kss, cns, &reqt, &resp);
+
+																if (qerr == dktp_error_none)
+																{
+																	dktp_packet_header_serialize(&resp, brsp);
+																	slen = qsc_socket_send(&cns->target, brsp, KEX_ESTABLISH_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
+
+																	if (slen == KEX_ESTABLISH_RESPONSE_PACKET_SIZE)
+																	{
+																		cns->txseq += 1U;
+																	}
+																	else
+																	{
+																		qerr = dktp_error_transmit_failure;
+																	}
+																}
+															}
+														}
+														else
+														{
+															qerr = dktp_error_receive_failure;
+														}
+													}
+												}
+												else
+												{
+													qerr = dktp_error_transmit_failure;
+												}
+											}
+										}
+									}
+									else
+									{
+										qerr = dktp_error_receive_failure;
+									}
 								}
 							}
-						}
-						else
-						{
-							qerr = dktp_error_memory_allocation;
+							else
+							{
+								qerr = dktp_error_transmit_failure;
+							}
 						}
 					}
 				}
@@ -1189,148 +1208,31 @@ dktp_errors dktp_kex_server_key_exchange(dktp_kex_server_state* kss, dktp_connec
 					qerr = dktp_error_receive_failure;
 				}
 
-				/* 2. exchange stage */
-				if (qerr == dktp_error_none)
-				{
-					rbuf = (uint8_t*)qsc_memutils_realloc(rbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE);
-
-					if (rbuf != NULL)
-					{
-						qsc_memutils_clear(rbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE);
-						resp.pmessage = rbuf + DKTP_HEADER_SIZE;
-
-						/* wait for the exchange request */
-						rlen = qsc_socket_receive(&cns->target, rbuf, KEX_EXCHANGE_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
-
-						if (rlen == KEX_EXCHANGE_REQUEST_PACKET_SIZE)
-						{
-							dktp_packet_header_deserialize(rbuf, &resp);
-							qerr = dktp_header_validate(cns, &resp, dktp_flag_connect_response, dktp_flag_exchange_request, cns->rxseq, KEX_EXCHANGE_REQUEST_MESSAGE_SIZE);
-
-							if (qerr == dktp_error_none)
-							{
-								sbuf = (uint8_t*)qsc_memutils_realloc(sbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE);
-
-								if (sbuf != NULL)
-								{
-									qsc_memutils_clear(sbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE);
-									reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
-
-									/* create the exchange response packet */
-									qerr = kex_server_exchange_response(kss, cns, &resp, &reqt);
-
-									if (qerr == dktp_error_none)
-									{
-										dktp_packet_header_serialize(&reqt, sbuf);
-										slen = qsc_socket_send(&cns->target, sbuf, KEX_EXCHANGE_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
-
-										if (slen == KEX_EXCHANGE_RESPONSE_PACKET_SIZE)
-										{
-											cns->txseq += 1U;
-										}
-										else
-										{
-											qerr = dktp_error_transmit_failure;
-										}
-									}
-								}
-								else
-								{
-									qerr = dktp_error_memory_allocation;
-								}
-							}
-						}
-						else
-						{
-							qerr = dktp_error_receive_failure;
-						}
-					}
-					else
-					{
-						qerr = dktp_error_memory_allocation;
-					}
-				}
-
-				/* 3. establish stage */
-				if (qerr == dktp_error_none)
-				{
-					rbuf = (uint8_t*)qsc_memutils_realloc(rbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-
-					if (rbuf != NULL)
-					{
-						qsc_memutils_clear(rbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-						resp.pmessage = rbuf + DKTP_HEADER_SIZE;
-
-						/* wait for the establish request */
-						rlen = qsc_socket_receive(&cns->target, rbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE, qsc_socket_receive_flag_wait_all);
-
-						if (rlen == KEX_ESTABLISH_REQUEST_PACKET_SIZE)
-						{
-							dktp_packet_header_deserialize(rbuf, &resp);
-							qerr = dktp_header_validate(cns, &resp, dktp_flag_exchange_response, dktp_flag_establish_request, cns->rxseq, KEX_ESTABLISH_REQUEST_MESSAGE_SIZE);
-
-							if (qerr == dktp_error_none)
-							{
-								sbuf = (uint8_t*)qsc_memutils_realloc(sbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-
-								if (sbuf != NULL)
-								{
-									qsc_memutils_clear(sbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-									reqt.pmessage = sbuf + DKTP_HEADER_SIZE;
-
-									/* create the establish response packet */
-									qerr = kex_server_establish_response(kss, cns, &resp, &reqt);
-
-									/* erase the receive buffer */
-									qsc_memutils_clear(rbuf, KEX_ESTABLISH_REQUEST_PACKET_SIZE);
-
-									if (qerr == dktp_error_none)
-									{
-										dktp_packet_header_serialize(&reqt, sbuf);
-										slen = qsc_socket_send(&cns->target, sbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE, qsc_socket_send_flag_none);
-
-										/* erase the transmit buffer */
-										qsc_memutils_clear(sbuf, KEX_ESTABLISH_RESPONSE_PACKET_SIZE);
-
-										if (slen == KEX_ESTABLISH_RESPONSE_PACKET_SIZE)
-										{
-											cns->txseq += 1U;
-										}
-										else
-										{
-											qerr = dktp_error_transmit_failure;
-										}
-									}
-								}
-								else
-								{
-									qerr = dktp_error_memory_allocation;
-								}
-							}
-						}
-						else
-						{
-							qerr = dktp_error_receive_failure;
-						}
-					}
-					else
-					{
-						qerr = dktp_error_memory_allocation;
-					}
-				}
-
-				qsc_memutils_alloc_free(sbuf);
+				qsc_memutils_secure_erase(brsp, lrsp);
+				qsc_memutils_alloc_free(brsp);
 			}
 			else
 			{
-				qerr = dktp_error_memory_allocation;
+				qerr = dktp_error_invalid_input;
 			}
 
-			qsc_memutils_alloc_free(rbuf);
+			qsc_memutils_secure_erase(brqt, lrqt);
+			qsc_memutils_alloc_free(brqt);
 		}
 		else
 		{
 			qerr = dktp_error_memory_allocation;
+		}
+
+		if (qerr != dktp_error_none)
+		{
+			if (cns->target.connection_status == qsc_socket_state_connected)
+			{
+				kex_send_network_error(&cns->target, qerr);
+				qsc_socket_shut_down(&cns->target, qsc_socket_shut_down_flag_both);
+			}
+
+			dktp_connection_state_dispose(cns);
 		}
 	}
 	else
@@ -1338,20 +1240,10 @@ dktp_errors dktp_kex_server_key_exchange(dktp_kex_server_state* kss, dktp_connec
 		qerr = dktp_error_invalid_input;
 	}
 
-	if (qerr != dktp_error_none)
-	{
-		if (cns->target.connection_status == qsc_socket_state_connected)
-		{
-			kex_send_network_error(&cns->target, qerr);
-			qsc_socket_shut_down(&cns->target, qsc_socket_shut_down_flag_both);
-		}
-
-		dktp_connection_state_dispose(cns);
-	}
-
 	return qerr;
 }
 
+#if defined(DKTP_KEX_TEST_ENABLED)
 bool dktp_kex_test(void)
 {
 	dktp_kex_client_state dkcs = { 0 };
@@ -1415,3 +1307,4 @@ bool dktp_kex_test(void)
 
 	return res;
 }
+#endif
