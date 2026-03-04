@@ -115,6 +115,12 @@
 //*/
 //#define DKTP_CONFIG_SPHINCS_MCELIECE
 
+/** \cond DOXYGEN_NO_DOCUMENT */
+#if (!defined(DKTP_CONFIG_DILITHIUM_KYBER) && !defined(DKTP_CONFIG_DILITHIUM_MCELIECE) && !defined(DKTP_CONFIG_SPHINCS_MCELIECE))
+#	define DKTP_CONFIG_DILITHIUM_KYBER
+#endif
+/** \endcond DOXYGEN_NO_DOCUMENT */
+
 #include "dktpcommon.h"
 #include "socketbase.h"
 
@@ -142,8 +148,7 @@
 * \def DKTP_DOMAIN_IDENTITY_STRING
 * \brief The default domain/device identity string.
 * This value is injected as a strict domain boundary that is authenticating but does not effect key output.
-* The domain string is added as a customization to the cSHAKE instance in the establish [session-cookie hash] phase of the key-exchange, 
-* used to verify a common domain identity between the peering hosts.
+* The domain string is used as a customation parameter in the asymmetric ratchet mechanism.
 * Default domain string is 16 characters: Domain : Device Group : Protocol and Version.
 */
 extern const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof(char)];
@@ -241,18 +246,6 @@ extern const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof
 * \brief The DKTP packet header size
 */
 #define DKTP_HEADER_SIZE 21U
-
-/*!
-* \def DKTP_KEEPALIVE_STRING
-* \brief The keep alive string size
-*/
-#define DKTP_KEEPALIVE_STRING 20U
-
-/*!
-* \def DKTP_KEEPALIVE_TIMEOUT
-* \brief The keep alive timeout in milliseconds (2 minutes)
-*/
-#define DKTP_KEEPALIVE_TIMEOUT (120U * 1000U)
 
 /*!
 * \def DKTP_KEYID_SIZE
@@ -714,24 +707,20 @@ DKTP_EXPORT_API typedef enum dktp_flags
 	dktp_flag_connect_response = 0x02U,				/*!< The DKTP key-exchange server connection response flag */
 	dktp_flag_connection_terminate = 0x03U,			/*!< The connection is to be terminated */
 	dktp_flag_encrypted_message = 0x04U,			/*!< The message has been encrypted flag */
-	dktp_flag_exstart_request = 0x05U,				/*!< The DKTP key-exchange client exstart request flag */
-	dktp_flag_exstart_response = 0x06U,				/*!< The DKTP key-exchange server exstart response flag */
-	dktp_flag_exchange_request = 0x07U,				/*!< The DKTP key-exchange client exchange request flag */
-	dktp_flag_exchange_response = 0x08U,			/*!< The DKTP key-exchange server exchange response flag */
-	dktp_flag_establish_request = 0x09U,			/*!< The DKTP key-exchange client establish request flag */
-	dktp_flag_establish_response = 0x0AU,			/*!< The DKTP key-exchange server establish response flag */
-	dktp_flag_keep_alive_request = 0x0BU,			/*!< The packet contains a keep alive request */
-	dktp_flag_keep_alive_response = 0x0CU,			/*!< The packet contains a keep alive response */
-	dktp_flag_remote_connected = 0x0DU,				/*!< The remote host is connected flag */
-	dktp_flag_remote_terminated = 0x0EU,			/*!< The remote host has terminated the connection */
-	dktp_flag_session_established = 0x0FU,			/*!< The exchange is in the established state */
-	dktp_flag_session_establish_verify = 0x10U,		/*!< The exchange is in the established verify state */
-	dktp_flag_unrecognized_protocol = 0x11U,		/*!< The protocol string is not recognized */
-	dktp_flag_asymmetric_ratchet_request = 0x12U,	/*!< The host has received a asymmetric key ratchet request */
-	dktp_flag_asymmetric_ratchet_response = 0x13U,	/*!< The host has received a asymmetric key ratchet request */
-	dktp_flag_symmetric_ratchet_request = 0x14U,	/*!< The host has received a symmetric key ratchet request */
-	dktp_flag_transfer_request = 0x15U,				/*!< Reserved - The host has received a transfer request */
-	dktp_flag_error_condition = 0xFFU,				/*!< The connection experienced an error */
+	dktp_flag_exchange_request = 0x05U,				/*!< The DKTP key-exchange client exchange request flag */
+	dktp_flag_exchange_response = 0x06U,			/*!< The DKTP key-exchange server exchange response flag */
+	dktp_flag_establish_request = 0x07U,			/*!< The DKTP key-exchange client establish request flag */
+	dktp_flag_establish_response = 0x08U,			/*!< The DKTP key-exchange server establish response flag */
+	dktp_flag_remote_connected = 0x09U,				/*!< The remote host is connected flag */
+	dktp_flag_remote_terminated = 0x0AU,			/*!< The remote host has terminated the connection */
+	dktp_flag_session_established = 0x0BU,			/*!< The exchange is in the established state */
+	dktp_flag_session_establish_verify = 0x0CU,		/*!< The exchange is in the established verify state */
+	dktp_flag_unrecognized_protocol = 0x0DU,		/*!< The protocol string is not recognized */
+	dktp_flag_asymmetric_ratchet_request = 0x0EU,	/*!< The host has received a asymmetric key ratchet request */
+	dktp_flag_asymmetric_ratchet_response = 0xFU,	/*!< The host has received a asymmetric key ratchet request */
+	dktp_flag_symmetric_ratchet_request = 0x10U,	/*!< The host has received a symmetric key ratchet request */
+	dktp_flag_transfer_request = 0x11U,				/*!< Reserved - The host has received a transfer request */
+	dktp_flag_error_condition = 0x12U,				/*!< The connection experienced an error */
 } dktp_flags;
 
 /*!

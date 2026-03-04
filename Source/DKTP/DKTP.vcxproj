@@ -168,21 +168,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="dktpcommon.h" />
-    <ClInclude Include="connections.h" />
     <ClInclude Include="doxymain.h" />
     <ClInclude Include="kex.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="dktp.h" />
     <ClInclude Include="client.h" />
-    <ClInclude Include="server.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="connections.c" />
     <ClCompile Include="kex.c" />
     <ClCompile Include="logger.c" />
     <ClCompile Include="dktp.c" />
     <ClCompile Include="client.c" />
-    <ClCompile Include="server.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\QSC\QSC\QSC.vcxproj">

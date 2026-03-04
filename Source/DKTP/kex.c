@@ -338,6 +338,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					/* initialize cSHAKE tckr = H(secl, pssr) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, kcs->secl, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssr, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
+					qsc_memutils_secure_erase(&kstate, sizeof(qsc_keccak_state));
 
 					/* initialize the symmetric cipher, and raise client channel-1 tx */
 					qsc_rcs_keyparams kp = { 0 };
@@ -355,6 +356,7 @@ static dktp_errors kex_client_establish_request(dktp_kex_client_state* kcs, dktp
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kcs->pssl, DKTP_SECRET_SIZE);
 					qsc_memutils_secure_erase(secr, sizeof(secr));
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
+					qsc_memutils_secure_erase(&kstate, sizeof(qsc_keccak_state));
 
 					/* initialize the symmetric cipher, and raise client channel-1 rx */
 					kp.key = prnd;
@@ -696,7 +698,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* generate, and encapsulate the secret and store the cipher-text in the message */
 					dktp_cipher_encapsulate(secl, packetout->pmessage, packetin->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE, qsc_acp_generate);
 
-					/* assemble the exstart-request packet */
+					/* assemble the exchange-response packet */
 					dktp_header_create(packetout, dktp_flag_exchange_response, cns->txseq, KEX_EXCHANGE_RESPONSE_MESSAGE_SIZE);
 					
 					/* hash the ciphertext and header */
@@ -716,7 +718,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					mlen = 0U;
 					dktp_signature_sign(packetout->pmessage + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE, &mlen, hm, DKTP_HASH_SIZE, kss->sigkey, qsc_acp_generate);
 					
-					/* initialize cSHAKE tckl = H(secl, pssr) */
+					/* initialize cSHAKE tckl = H(secr, pssl) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secr, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_TX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssl, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 					qsc_memutils_secure_erase(secr, sizeof(secr));
@@ -733,7 +735,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* pssr = H(pssr, tckr) */
 					qsc_cshake512_compute(kss->pssr, DKTP_SECRET_SIZE, kss->pssr, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
 
-					/* initialize cSHAKE tckr = H(secr, pssl) */
+					/* initialize cSHAKE tckr = H(secl, pssr) */
 					qsc_cshake_initialize(&kstate, qsc_keccak_rate_512, secl, DKTP_SECRET_SIZE, (const uint8_t*)DKTP_RX_CHANNEL_IDENTITY, DKTP_CHANNEL_IDENTITY_LENGTH - 1U, kss->pssr, DKTP_SECRET_SIZE);
 					qsc_cshake_squeezeblocks(&kstate, qsc_keccak_rate_512, prnd, 2U);
 					qsc_memutils_secure_erase(secl, sizeof(secl));
@@ -750,6 +752,7 @@ static dktp_errors kex_server_exchange_response(dktp_kex_server_state* kss, dktp
 					/* pssl = H(pssl, tckl) */
 					qsc_cshake512_compute(kss->pssl, DKTP_SECRET_SIZE, kss->pssl, DKTP_SECRET_SIZE, NULL, 0, prnd, DKTP_SECRET_SIZE);
 					qsc_memutils_secure_erase(prnd, sizeof(prnd));
+					qsc_memutils_secure_erase(&kstate, sizeof(qsc_keccak_state));
 
 					qerr = dktp_error_none;
 					cns->exflag = dktp_flag_exchange_response;
@@ -798,6 +801,7 @@ S{ cpt }-> C
 */
 static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dktp_connection_state* cns, const dktp_network_packet* packetin, dktp_network_packet* packetout)
 {
+	DKTP_ASSERT(kss != NULL);
 	DKTP_ASSERT(cns != NULL);
 	DKTP_ASSERT(packetin != NULL);
 	DKTP_ASSERT(packetout != NULL);
@@ -806,7 +810,7 @@ static dktp_errors kex_server_establish_response(dktp_kex_server_state* kss, dkt
 
 	qerr = dktp_error_invalid_input;
 
-	if (cns != NULL && packetin != NULL && packetout != NULL)
+	if (kss != NULL && cns != NULL && packetin != NULL && packetout != NULL)
 	{
 		uint8_t hm[DKTP_HASH_SIZE] = { 0U };
 		uint8_t sph[DKTP_HEADER_SIZE] = { 0U };
@@ -1213,7 +1217,7 @@ dktp_errors dktp_kex_server_key_exchange(dktp_kex_server_state* kss, dktp_connec
 			}
 			else
 			{
-				qerr = dktp_error_invalid_input;
+				qerr = dktp_error_memory_allocation;
 			}
 
 			qsc_memutils_secure_erase(brqt, lrqt);

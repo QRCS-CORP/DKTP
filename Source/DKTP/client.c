@@ -52,9 +52,6 @@ static void client_state_initialize(dktp_kex_client_state* kcs, dktp_connection_
 	qsc_memutils_copy(kcs->pssl, lpk->pss, DKTP_SECRET_SIZE);
 	qsc_memutils_copy(kcs->pssr, rpk->pss, DKTP_SECRET_SIZE);
 	kcs->expiration = rpk->expiration;
-#if defined(DKTP_ASYMMETRIC_RATCHET)
-	cns->txlock = qsc_async_mutex_create();
-#endif
 	cns->target.instance = qsc_acp_uint32();
 	qsc_rcs_dispose(&cns->rxcpr);
 	qsc_rcs_dispose(&cns->txcpr);
@@ -104,7 +101,6 @@ static void asymmetric_ratchet_update(qsc_rcs_state* cpr, uint8_t* pss, const ui
 	/* update the pre-shared secret */
 	qsc_cshake512_compute(pss, DKTP_SECRET_SIZE, prnd, DKTP_SECRET_SIZE, NULL, 0, pss, DKTP_SECRET_SIZE);
 	qsc_memutils_secure_erase(prnd, sizeof(prnd));
-
 }
 
 static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_network_packet* packetin)
@@ -113,9 +109,8 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 	bool res;
 
 	res = false;
-	cns->rxseq += 1U;
 
-	if (packetin->sequence == cns->rxseq && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_REQUEST_MESSAGE_SIZE)
+	if (packetin->sequence == cns->rxseq + 1U && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_REQUEST_MESSAGE_SIZE)
 	{
 		if (dktp_packet_time_valid(packetin) == true)
 		{
@@ -151,6 +146,8 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 						uint8_t ssec[DKTP_SYMMETRIC_KEY_SIZE] = { 0U };
 						size_t slen;
 
+						cns->rxseq += 1U;
+
 						mlen = DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
 
 						/* encapsulate a secret with the public key */
@@ -164,13 +161,13 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 						dktp_signature_sign(mtmp, &mlen, khash, sizeof(khash), cns->sigkey, qsc_acp_generate);
 
 						/* create the outbound packet */
-#if defined(DKTP_ASYMMETRIC_RATCHET)
 						qsc_async_mutex_lock(cns->txlock);
-#endif
+
 						cns->txseq += 1U;
 						pkt.flag = dktp_flag_asymmetric_ratchet_response;
 						pkt.msglen = DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE;
 						pkt.sequence = cns->txseq;
+						dktp_packet_set_utc_time(&pkt);
 						mlen += DKTP_HEADER_SIZE + DKTP_ASYMMETRIC_CIPHER_TEXT_SIZE;
 
 						/* serialize the header */
@@ -180,20 +177,18 @@ static bool asymmetric_ratchet_response(dktp_connection_state* cns, const dktp_n
 						/* encrypt the message */
 						qsc_rcs_transform(&cns->txcpr, omsg + DKTP_HEADER_SIZE, mtmp, sizeof(mtmp));
 						mlen += DKTP_MACTAG_SIZE;
-#if defined(DKTP_ASYMMETRIC_RATCHET)
-						qsc_async_mutex_unlock(cns->txlock);
-#endif
+
 						/* send the encrypted message */
 						slen = qsc_socket_send(&cns->target, omsg, mlen, qsc_socket_send_flag_none);
 
 						if (slen == mlen)
 						{
 							/* pass the secret to the symmetric ratchet */
-							// receiver
 							asymmetric_ratchet_update(&cns->rxcpr, cns->pssr, ssec, false);
 							res = true;
 						}
 
+						qsc_async_mutex_unlock(cns->txlock);
 						qsc_memutils_secure_erase(ssec, sizeof(ssec));
 					}
 				}
@@ -214,13 +209,11 @@ static bool asymmetric_ratchet_finalize(dktp_connection_state* cns, const dktp_n
 	size_t mpos;
 	bool res;
 
-	cns->rxseq += 1U;
-
 	res = false;
 	mlen = 0U;
 	mpos = DKTP_ASYMMETRIC_SIGNATURE_SIZE + DKTP_HASH_SIZE;
 
-	if (packetin->sequence == cns->rxseq && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE)
+	if (packetin->sequence == cns->rxseq + 1U && packetin->msglen == DKTP_ASYMMETRIC_RATCHET_RESPONSE_MESSAGE_SIZE)
 	{
 		if (dktp_packet_time_valid(packetin) == true)
 		{
@@ -243,25 +236,22 @@ static bool asymmetric_ratchet_finalize(dktp_connection_state* cns, const dktp_n
 					/* verify the embedded hash against a hash of the cipher-text */
 					if (qsc_intutils_verify(rhash, lhash, DKTP_HASH_SIZE) == 0)
 					{
-#if defined(DKTP_ASYMMETRIC_RATCHET)
-						qsc_async_mutex_lock(cns->txlock);
-#endif
+						cns->rxseq += 1U;
+
 						/* decapsulate the secret */
 						res = dktp_cipher_decapsulate(ssec, imsg + mpos, cns->deckey);
 
 						if (res == true)
 						{
 							/* pass the secret to the symmetric ratchet */
+							qsc_async_mutex_lock(cns->txlock);
 							asymmetric_ratchet_update(&cns->txcpr, cns->pssl, ssec, true);
+							qsc_async_mutex_unlock(cns->txlock);
 						}
 
 						qsc_memutils_secure_erase(ssec, sizeof(ssec));
 						qsc_memutils_secure_erase(cns->deckey, DKTP_ASYMMETRIC_DECAPSULATION_KEY_SIZE);
 						qsc_memutils_secure_erase(cns->enckey, DKTP_ASYMMETRIC_ENCAPSULATION_KEY_SIZE);
-
-#if defined(DKTP_ASYMMETRIC_RATCHET)
-						qsc_async_mutex_unlock(cns->txlock);
-#endif
 					}
 				}
 			}
@@ -370,6 +360,7 @@ static void client_receive_loop(void* prcv)
 
 						if (mlen > 0U)
 						{
+							dktp_packet_header_deserialize(rbuf, &pkt);
 							pkt.pmessage = rbuf + DKTP_HEADER_SIZE;
 
 							if (pkt.flag == dktp_flag_encrypted_message)
@@ -396,7 +387,7 @@ static void client_receive_loop(void* prcv)
 										break;
 									}
 
-									qsc_memutils_clear(rmsg, slen);
+									qsc_memutils_secure_erase(rmsg, slen);
 									qsc_memutils_alloc_free(rmsg);
 								}
 								else
@@ -410,14 +401,6 @@ static void client_receive_loop(void* prcv)
 							{
 								dktp_log_write(dktp_messages_disconnect, cadd);
 								break;
-							}
-							else if (pkt.flag == dktp_flag_keep_alive_request)
-							{
-								const size_t klen = DKTP_HEADER_SIZE + DKTP_TIMESTAMP_SIZE;
-								/* copy the keep-alive packet and send it back */
-								pkt.flag = dktp_flag_keep_alive_response;
-								dktp_packet_header_serialize(&pkt, rbuf);
-								qsc_socket_send(&pprcv->pcns->target, rbuf, klen, qsc_socket_send_flag_none);
 							}
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 							else if (pkt.flag == dktp_flag_asymmetric_ratchet_request)
@@ -465,7 +448,7 @@ static void client_receive_loop(void* prcv)
 							break;
 						}
 
-						qsc_memutils_clear(rbuf, sizeof(plen));
+						qsc_memutils_clear(rbuf, plen);
 					}
 				}
 				else
@@ -536,6 +519,7 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 
 						if (mlen > 0U)
 						{
+							dktp_packet_header_deserialize(rbuf, &pkt);
 							pkt.pmessage = rbuf + DKTP_HEADER_SIZE;
 
 							if (pkt.flag == dktp_flag_encrypted_message)
@@ -562,7 +546,7 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 										break;
 									}
 
-									qsc_memutils_clear(rmsg, slen);
+									qsc_memutils_secure_erase(rmsg, slen);
 									qsc_memutils_alloc_free(rmsg);
 								}
 								else
@@ -617,6 +601,7 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 										serr == qsc_socket_exception_shut_down)
 									{
 										dktp_log_write(dktp_messages_connection_fail, cadd);
+										break;
 									}
 								}
 							}
@@ -671,6 +656,7 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 
 	listener_receive_loop_args largs = { 0 };
 	dktp_kex_server_state* pkss;
+	qsc_thread trcv;
 	dktp_errors err;
 
 	err = dktp_error_invalid_input;
@@ -707,12 +693,18 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 
 		if (err == dktp_error_none)
 		{
+#if defined(DKTP_ASYMMETRIC_RATCHET)
+			prcv->pcns->txlock = qsc_async_mutex_create();
+#endif
 			/* initialize the receiver loop on a new thread */
 			largs.prcv = prcv;
-			qsc_async_thread_create(&listener_receive_loop_wrapper, &largs);
+			trcv = qsc_async_thread_create(&listener_receive_loop_wrapper, &largs);
 
 			/* start the send loop on the *main* thread */
 			send_func(prcv->pcns);
+
+			/* terminate the receiver thread */
+			(void)qsc_async_thread_terminate(trcv);
 
 #if defined(DKTP_ASYMMETRIC_RATCHET)
 			/* update the pre-shared secrets */
@@ -720,6 +712,7 @@ static dktp_errors listener_start(dktp_local_peer_key* lpk,
 			qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
 			qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
 			qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+			qsc_async_mutex_destroy(prcv->pcns->txlock);
 #endif
 		}
 	}
@@ -775,9 +768,8 @@ bool dktp_send_asymmetric_ratchet_request(dktp_connection_state* cns)
 		size_t smlen;
 		size_t slen;
 
-#if defined(DKTP_ASYMMETRIC_RATCHET)
 		qsc_async_mutex_lock(cns->txlock);
-#endif
+
 		cns->txseq += 1U;
 		pkt.pmessage = spct + DKTP_HEADER_SIZE;
 		pkt.flag = dktp_flag_asymmetric_ratchet_request;
@@ -808,9 +800,8 @@ bool dktp_send_asymmetric_ratchet_request(dktp_connection_state* cns)
 		qsc_rcs_transform(&cns->txcpr, pkt.pmessage, pmsg, sizeof(pmsg));
 		mlen += DKTP_MACTAG_SIZE;
 
-#if defined(DKTP_ASYMMETRIC_RATCHET)
 		qsc_async_mutex_unlock(cns->txlock);
-#endif
+
 		/* send the ratchet request */
 		slen = qsc_socket_send(&cns->target, spct, mlen, qsc_socket_send_flag_none);
 
@@ -884,6 +875,8 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 
 							/* clear the kex state */
 							client_kex_reset(kcs);
+							qsc_memutils_alloc_free(kcs);
+							kcs = NULL;
 
 							if (err == dktp_error_none)
 							{
@@ -894,6 +887,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 								/* load the pre-shared keys for ratchet seeds and updates */
 								qsc_memutils_copy(prcv->pcns->pssl, lpk->pss, DKTP_SECRET_SIZE);
 								qsc_memutils_copy(prcv->pcns->pssr, rpk->pss, DKTP_SECRET_SIZE);
+								prcv->pcns->txlock = qsc_async_mutex_create();
 #endif
 								/* start the receive loop on a new thread */
 								trcv = qsc_async_thread_create(&client_receive_loop, prcv);
@@ -910,6 +904,7 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 								qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
 								qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
 								qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+								qsc_async_mutex_destroy(prcv->pcns->txlock);
 #endif
 							}
 							else
@@ -947,8 +942,11 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 					err = dktp_error_memory_allocation;
 				}
 
-				qsc_memutils_alloc_free(kcs);
-				kcs = NULL;
+				if (kcs != NULL)
+				{
+					qsc_memutils_alloc_free(kcs);
+					kcs = NULL;
+				}
 			}
 			else
 			{
@@ -1033,6 +1031,8 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 
 							/* clear the kex state */
 							client_kex_reset(kcs);
+							qsc_memutils_alloc_free(kcs);
+							kcs = NULL;
 
 							if (err == dktp_error_none)
 							{
@@ -1043,6 +1043,7 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 								/* load the pre-shared keys for ratchet seeds and updates */
 								qsc_memutils_copy(prcv->pcns->pssl, lpk->pss, DKTP_SECRET_SIZE);
 								qsc_memutils_copy(prcv->pcns->pssr, rpk->pss, DKTP_SECRET_SIZE);
+								prcv->pcns->txlock = qsc_async_mutex_create();
 #endif
 								/* start the receive loop on a new thread */
 								trcv = qsc_async_thread_create(&client_receive_loop, prcv);
@@ -1059,16 +1060,18 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 								qsc_memutils_copy(rpk->pss, prcv->pcns->pssr, DKTP_SECRET_SIZE);
 								qsc_memutils_secure_erase(prcv->pcns->sigkey, DKTP_ASYMMETRIC_SIGNING_KEY_SIZE);
 								qsc_memutils_secure_erase(prcv->pcns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
+								qsc_async_mutex_destroy(prcv->pcns->txlock);
 #endif
 
-								/* disconnect the socket */
-								client_connection_dispose(prcv);
 							}
 							else
 							{
 								dktp_log_write(dktp_messages_kex_fail, (const char*)prcv->pcns->target.address);
 								err = dktp_error_exchange_failure;
 							}
+
+							/* disconnect the socket */
+							client_connection_dispose(prcv);
 						}
 						else
 						{
@@ -1096,8 +1099,11 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 					err = dktp_error_memory_allocation;
 				}
 
-				qsc_memutils_alloc_free(kcs);
-				kcs = NULL;
+				if (kcs != NULL)
+				{
+					qsc_memutils_alloc_free(kcs);
+					kcs = NULL;
+				}
 			}
 			else
 			{

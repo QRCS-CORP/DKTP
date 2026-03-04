@@ -205,11 +205,6 @@ void dktp_connection_state_dispose(dktp_connection_state* cns)
 		qsc_memutils_secure_erase(cns->verkey, DKTP_ASYMMETRIC_VERIFY_KEY_SIZE);
 		qsc_memutils_secure_erase(cns->pssl, DKTP_SECRET_SIZE);
 		qsc_memutils_secure_erase(cns->pssr, DKTP_SECRET_SIZE);
-
-		if (cns->txlock)
-		{
-			qsc_async_mutex_destroy(cns->txlock);
-		}
 #endif
 	}
 }
@@ -238,23 +233,20 @@ bool dktp_decrypt_error_message(dktp_errors* merr, dktp_connection_state* cns, c
 		{
 			if (pkt.sequence == cns->rxseq + 1U)
 			{
-				if (cns->exflag == dktp_flag_session_established)
+				/* anti-replay; verify the packet time */
+				if (dktp_packet_time_valid(&pkt) == true)
 				{
-					/* anti-replay; verify the packet time */
-					if (dktp_packet_time_valid(&pkt) == true)
-					{
-						qsc_rcs_set_associated(&cns->rxcpr, message, DKTP_HEADER_SIZE);
-						mlen = pkt.msglen - DKTP_MACTAG_SIZE;
+					qsc_rcs_set_associated(&cns->rxcpr, message, DKTP_HEADER_SIZE);
+					mlen = pkt.msglen - DKTP_MACTAG_SIZE;
 
-						if (mlen == 1U)
+					if (mlen == 1U)
+					{
+						/* authenticate then decrypt the data */
+						if (qsc_rcs_transform(&cns->rxcpr, dmsg, emsg, mlen) == true)
 						{
-							/* authenticate then decrypt the data */
-							if (qsc_rcs_transform(&cns->rxcpr, dmsg, emsg, mlen) == true)
-							{
-								cns->rxseq += 1;
-								err = (dktp_errors)dmsg[0U];
-								res = true;
-							}
+							cns->rxseq += 1;
+							err = (dktp_errors)dmsg[0U];
+							res = true;
 						}
 					}
 				}
@@ -437,8 +429,8 @@ void dktp_log_system_error(dktp_errors err)
 	const char* perr;
 	const char* pmsg;
 
-	pmsg = dktp_error_to_string(err);
-	perr = dktp_get_error_description(dktp_messages_system_message);
+	pmsg = dktp_get_error_description(dktp_messages_system_message);
+	perr = dktp_error_to_string(err);
 
 	qsc_stringutils_copy_string(mtmp, sizeof(mtmp), pmsg);
 	qsc_stringutils_concat_strings(mtmp, sizeof(mtmp), perr);
