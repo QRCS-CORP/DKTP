@@ -45,7 +45,7 @@ DKTP combines post-quantum asymmetric key exchange, directional pre-shared secre
 
 ## Design Goals
 
-DKTP was designed to address the limitations of legacy secure transport protocols:
+DKTP was designed to address the limitations of legacy secure transport protocols: 
 
 - **Eliminate legacy dependencies** - no RSA, ECDH, X.509, or TLS-style certificate chains
 - **Full quantum resilience** - all asymmetric operations use NIST-standardized post-quantum primitives
