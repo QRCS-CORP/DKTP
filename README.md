@@ -101,7 +101,7 @@ Client                                          Server
   |<══════════ Encrypted Session ══════════════> |  Dual-channel RCS-512 with symmetric ratchet
 ```
 
-Each session uses ephemeral asymmetric key pairs and mixes static pre-shared secrets with KEM-derived material to produce two independent symmetric channel keys. After session completion the pre-shared secret is evolved as `psk' = H(psk || session_key)`, providing forward secrecy and post-compromise recovery.
+Each session uses ephemeral asymmetric key pairs and mixes static pre-shared secrets with KEM-derived material to produce two independent symmetric channel keys. After session completion the pre-shared secret is evolved as `psk' = H(psk || session_key)`, providing forward secrecy and post-compromise recovery. 
 
 ---
 
