@@ -163,7 +163,7 @@ extern const char DKTP_DOMAIN_IDENTITY_STRING[DKTP_DOMAIN_IDENTITY_SIZE + sizeof
 * \def DKTP_CONFIG_SIZE
 * \brief The size of the protocol configuration string
 */
-#define DKTP_CONFIG_SIZE 48U
+#define DKTP_CONFIG_SIZE 36U
 
 /*!
 * \def DKTP_HASH_SIZE

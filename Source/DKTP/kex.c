@@ -515,13 +515,16 @@ static dktp_errors kex_server_connect_response(dktp_kex_server_state* kss, dktp_
 		/* check the keys expiration date */
 		if (tm <= kss->expiration)
 		{
-			char confs[DKTP_CONFIG_SIZE + sizeof(char)] = { 0 };
+			char confs[DKTP_CONFIG_SIZE] = { 0 };
+			size_t clen;
+
+			clen = qsc_stringutils_string_size(DKTP_CONFIG_STRING);
 
 			/* get a copy of the configuration string */
-			qsc_memutils_copy(confs, packetin->pmessage + DKTP_KEYID_SIZE, DKTP_CONFIG_SIZE);
-
+			qsc_memutils_copy(confs, packetin->pmessage + DKTP_KEYID_SIZE, clen);
+			
 			/* compare the state configuration string to the message configuration string */
-			if (qsc_stringutils_compare_strings(confs, DKTP_CONFIG_STRING, DKTP_CONFIG_SIZE) == true)
+			if (qsc_stringutils_compare_strings(confs, DKTP_CONFIG_STRING, clen) == true)
 			{
 				uint8_t hm[DKTP_HASH_SIZE] = { 0U };
 				size_t mlen;

@@ -24,7 +24,8 @@ const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_sha3_rc
 #	endif
 #elif defined(DKTP_CONFIG_DILITHIUM_MCELIECE)
 #	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_MCELIECE_S1N3488T64)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "
+-s1_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_MCELIECE_S3N4608T96)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S5N6688T128)
@@ -37,24 +38,14 @@ const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_mceliece-s7_sha3
 #		error Invalid parameter set!
 #	endif
 #elif defined(DKTP_CONFIG_SPHINCS_MCELIECE)
-#	if defined(QSC_SPHINCSPLUS_S1S128SHAKERF) && defined(QSC_MCELIECE_S1N3488T64)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1f_mceliece-s1_sha3_rcs";
-#	elif defined(QSC_SPHINCSPLUS_S1S128SHAKERS) && defined(QSC_MCELIECE_S1N3488T64)
+#	if defined(QSC_SPHINCSPLUS_S1S128SHAKERS) && defined(QSC_MCELIECE_S1N3488T64)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s1s_mceliece-s1_sha3_rcs";
-#	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERF) && defined(QSC_MCELIECE_S3N4608T96)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3f_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S3S192SHAKERS) && defined(QSC_MCELIECE_S3N4608T96)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-3s_mceliece-s3_sha3_rcs";
-#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S5N6688T128)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s5_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S5N6688T128)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s5_sha3_rcs";
-#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S6N6960T119)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s6_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S6N6960T119)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s6_sha3_rcs";
-#	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERF) && defined(QSC_MCELIECE_S7N8192T128)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5f_mceliece-s7_sha3_rcs";
 #	elif defined(QSC_SPHINCSPLUS_S5S256SHAKERS) && defined(QSC_MCELIECE_S7N8192T128)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "sphincs-s5s_mceliece-s7_sha3_rcs";
 #	else

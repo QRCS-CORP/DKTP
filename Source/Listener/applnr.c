@@ -109,18 +109,23 @@ static void listener_print_banner(void)
 	qsc_consoleutils_print_line("");
 }
 
-static bool listener_get_storage_path(char* path, size_t pathlen)
+static bool listener_get_storage_path(char* fpath, size_t pathlen)
 {
 	bool res;
 
-	qsc_folderutils_get_directory(qsc_folderutils_directories_user_documents, path);
-	qsc_folderutils_append_delimiter(path);
-	qsc_stringutils_concat_strings(path, pathlen, DKTP_APP_PATH);
-	res = qsc_folderutils_directory_exists(path);
+#if defined(QSC_SYSTEM_OS_WINDOWS)
+	qsc_folderutils_get_directory(qsc_folderutils_directories_user_app_data, fpath);
+#else
+	qsc_folderutils_get_directory(qsc_folderutils_directories_user_documents, fpath);
+#endif
+
+	qsc_folderutils_append_delimiter(fpath);
+	qsc_stringutils_concat_strings(fpath, pathlen, DKTP_APP_PATH);
+	res = qsc_folderutils_directory_exists(fpath);
 
 	if (res == false)
 	{
-		res = qsc_folderutils_create_directory(path);
+		res = qsc_folderutils_create_directory(fpath);
 	}
 
 	return res;
