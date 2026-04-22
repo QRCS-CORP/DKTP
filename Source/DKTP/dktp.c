@@ -24,8 +24,7 @@ const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s5_kyber-s6_sha3_rc
 #	endif
 #elif defined(DKTP_CONFIG_DILITHIUM_MCELIECE)
 #	if defined(QSC_DILITHIUM_S1P44) && defined(QSC_MCELIECE_S1N3488T64)
-const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "
--s1_mceliece-s1_sha3_rcs";
+const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s1_mceliece-s1_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S3P65) && defined(QSC_MCELIECE_S3N4608T96)
 const char DKTP_CONFIG_STRING[DKTP_CONFIG_SIZE] = "dilithium-s3_mceliece-s3_sha3_rcs";
 #	elif defined(QSC_DILITHIUM_S5P87) && defined(QSC_MCELIECE_S5N6688T128)
