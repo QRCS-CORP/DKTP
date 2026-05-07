@@ -13,7 +13,7 @@
 [![Standard](https://img.shields.io/static/v1?label=Security%20Standard&message=MISRA&color=blue)](https://misra.org.uk/)
 [![Target](https://img.shields.io/static/v1?label=Target%20Industry&message=Communications&color=brightgreen)](#)
 
-**DKTP is a next-generation tunnel protocol achieving 512-bit post-quantum cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It provides mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.**
+**DKTP is a next-generation tunnel protocol achieving 512-bit post-quantum cryptographic security by fusing asymmetric key exchange with directional pre-shared secrets. It provides mutually authenticated, high-assurance communications between peers without requiring PKI or persistent root trust.** 
 
 ---
 
