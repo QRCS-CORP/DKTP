@@ -872,6 +872,8 @@ DKTP_EXPORT_API dktp_errors dktp_header_validate(dktp_connection_state* cns, con
 /*!
 * \brief Generate a DKTP key-pair; generates the public and private asymmetric signature keys.
 *
+* \note The peerid must be set at connection initialization.
+* 
 * \param enckey: The public key, distributed to clients
 * \param deckey: The private key, a secret key known only by the server
 * \param keyid: [const] The key identity string

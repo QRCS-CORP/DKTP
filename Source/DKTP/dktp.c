@@ -794,7 +794,11 @@ void dktp_stream_to_packet(const uint8_t* pstream, dktp_network_packet* packet)
 		pos += DKTP_SEQUENCE_SIZE;
 		packet->utctime = qsc_intutils_le8to64(pstream + pos);
 		pos += DKTP_TIMESTAMP_SIZE;
-		qsc_memutils_copy(packet->pmessage, pstream + pos, packet->msglen);
+
+		if (packet->msglen > 0U && packet->msglen <= DKTP_MESSAGE_MAX)
+		{
+			qsc_memutils_copy(packet->pmessage, pstream + pos, packet->msglen);
+		}
 	}
 }
 

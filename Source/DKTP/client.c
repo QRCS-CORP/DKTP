@@ -367,9 +367,14 @@ static void client_receive_loop(void* prcv)
 							{
 								uint8_t* rmsg;
 
+								rmsg = NULL;
 								slen = pkt.msglen;
-								slen -= DKTP_MACTAG_SIZE;
-								rmsg = (uint8_t*)qsc_memutils_malloc(slen);
+
+								if (slen >= DKTP_MACTAG_SIZE)
+								{
+									slen -= DKTP_MACTAG_SIZE;
+									rmsg = (uint8_t*)qsc_memutils_malloc(slen);
+								}
 
 								if (rmsg != NULL)
 								{
@@ -526,9 +531,14 @@ static void listener_receive_loop(listener_receiver_state* prcv)
 							{
 								uint8_t* rmsg;
 
+								rmsg = NULL;
 								slen = pkt.msglen;
-								slen -= DKTP_MACTAG_SIZE;
-								rmsg = (uint8_t*)qsc_memutils_malloc(slen);
+
+								if (slen >= DKTP_MACTAG_SIZE)
+								{
+									slen -= DKTP_MACTAG_SIZE;
+									rmsg = (uint8_t*)qsc_memutils_malloc(slen);
+								}
 
 								if (rmsg != NULL)
 								{
@@ -869,9 +879,12 @@ dktp_errors dktp_client_connect_ipv4(dktp_local_peer_key* lpk,
 							/* perform the simplex key exchange */
 							err = dktp_kex_client_key_exchange(kcs, prcv->pcns);
 							
-							/* update the pre-shared secrets */
-							qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
-							qsc_memutils_copy(rpk->pss, kcs->pssr, DKTP_SECRET_SIZE);
+							if (err == dktp_error_none)
+							{
+								/* update the pre-shared secrets */
+								qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
+								qsc_memutils_copy(rpk->pss, kcs->pssr, DKTP_SECRET_SIZE);
+							}
 
 							/* clear the kex state */
 							client_kex_reset(kcs);
@@ -1025,9 +1038,12 @@ dktp_errors dktp_client_connect_ipv6(dktp_local_peer_key* lpk,
 							/* perform the simplex key exchange */
 							err = dktp_kex_client_key_exchange(kcs, prcv->pcns);
 							
-							/* update the pre-shared secrets */
-							qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
-							qsc_memutils_copy(rpk->pss, kcs->pssr, DKTP_SECRET_SIZE);
+							if (err == dktp_error_none)
+							{
+								/* update the pre-shared secrets */
+								qsc_memutils_copy(lpk->pss, kcs->pssl, DKTP_SECRET_SIZE);
+								qsc_memutils_copy(rpk->pss, kcs->pssr, DKTP_SECRET_SIZE);
+							}
 
 							/* clear the kex state */
 							client_kex_reset(kcs);
