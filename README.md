@@ -26,7 +26,6 @@
 | [Protocol Specification](https://qrcs-corp.github.io/DKTP/pdf/dktp_specification.pdf) | Formal message and state machine specification |
 | [Formal Analysis](https://qrcs-corp.github.io/DKTP/pdf/dktp_formal.pdf) | Cryptographic security proofs and model |
 | [Implementation Analysis](https://qrcs-corp.github.io/DKTP/pdf/dktp_analysis.pdf) | Code-level security analysis |
-| [Integration Guide](https://qrcs-corp.github.io/DKTP/pdf/dktp_integration.pdf) | Deployment and integration guidance |
 
 ---
 
